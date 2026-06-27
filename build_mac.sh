@@ -23,6 +23,13 @@ else
 	qmake "CONFIG+=non_portable" pdf_viewer_build_config.pro
 fi
 
+# Qt 6.8.x still links the legacy AGL framework, which is absent from the
+# macOS 26 SDK. OpenGL.framework provides the APIs used by sioyek.
+MACOS_SDK_PATH="$(xcrun --sdk macosx --show-sdk-path)"
+if [[ ! -d "$MACOS_SDK_PATH/System/Library/Frameworks/AGL.framework" ]]; then
+	sed -i '' 's/ -framework AGL//g' Makefile
+fi
+
 make -j$MAKE_PARALLEL
 
 rm -rf build 2> /dev/null
