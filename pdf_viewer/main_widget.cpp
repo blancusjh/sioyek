@@ -4114,6 +4114,15 @@ void MainWidget::toggle_custom_color_mode() {
     }
 }
 
+void MainWidget::toggle_grayscale_mode() {
+    this->opengl_widget->toggle_grayscale_mode();
+
+    if (helper_opengl_widget_) {
+        helper_opengl_widget_->toggle_grayscale_mode();
+        helper_opengl_widget_->update();
+    }
+}
+
 
 void MainWidget::execute_command(std::wstring command, std::wstring text, bool wait) {
 
@@ -4464,6 +4473,7 @@ void MainWidget::apply_window_params_for_two_window_mode() {
         else {
             helper_opengl_widget_->set_dark_mode(false);
         }
+        helper_opengl_widget_->set_grayscale_mode(opengl_widget->get_grayscale_mode());
     }
 
     if (should_maximize) {
@@ -6436,6 +6446,7 @@ MainWidget* MainWidget::handle_new_window() {
     else if (color_mode == PdfViewOpenGLWidget::ColorPalette::Custom) {
         new_widget->opengl_widget->set_custom_color_mode(true);
     }
+    new_widget->opengl_widget->set_grayscale_mode(opengl_widget->get_grayscale_mode());
 
     windows.push_back(new_widget);
     return new_widget;
@@ -7305,6 +7316,17 @@ void MainWidget::set_custom_color_mode() {
     if (helper_opengl_widget_) {
         if (helper_opengl_widget_->get_current_color_mode() != PdfViewOpenGLWidget::ColorPalette::Custom) {    
             helper_opengl_widget_->set_custom_color_mode(true);
+        }
+    }
+}
+
+void MainWidget::set_grayscale_mode() {
+    if (!opengl_widget->get_grayscale_mode()) {
+        opengl_widget->set_grayscale_mode(true);
+    }
+    if (helper_opengl_widget_) {
+        if (!helper_opengl_widget_->get_grayscale_mode()) {
+            helper_opengl_widget_->set_grayscale_mode(true);
         }
     }
 }
@@ -11567,6 +11589,7 @@ QMenuBar* MainWidget::create_main_menu_bar(){
             new MenuNode{ "toggle_two_page_mode", "", {} },
             new MenuNode{ "toggle_dark_mode", "", {} },
             new MenuNode{ "toggle_custom_color", "", {} },
+            new MenuNode{ "toggle_grayscale_mode", "", {} },
             new MenuNode{ "toggle_scrollbar", "", {} },
             new MenuNode{ "toggle_statusbar", "", {} },
             new MenuNode{ "toggle_horizontal_scroll_lock", "", {} },

@@ -58,6 +58,7 @@ rerender_overview
 wheel_zoom_on_cursor
 linear_filter
 display_resolution_scale
+grayscale_white_point
 status_bar_color
 status_bar_text_color
 main_window_size

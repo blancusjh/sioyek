@@ -183,6 +183,7 @@ bool ALIGN_LINK_DEST_TO_TOP = false;
 int MAX_TAB_COUNT = 100;
 float SMALL_PIXMAP_SCALE = 0.75f;
 float DISPLAY_RESOLUTION_SCALE = -1;
+float GRAYSCALE_WHITE_POINT = 0.85f;
 float FIT_TO_PAGE_WIDTH_RATIO = 0.75;
 int MAIN_WINDOW_SIZE[2] = { -1, -1 };
 int HELPER_WINDOW_SIZE[2] = { -1, -1 };
@@ -210,6 +211,7 @@ bool SINGLE_CLICK_SELECTS_WORDS = false;
 bool USE_LEGACY_KEYBINDS = false;
 bool MULTILINE_MENUS = true;
 bool START_WITH_HELPER_WINDOW = false;
+bool USE_MULTIPLY_HIGHLIGHT_BLEND = true;
 std::map<std::wstring, std::wstring> ADDITIONAL_COMMANDS;
 bool LIGHTEN_COLORS_WHEN_EMBEDDING_ANNOTATIONS = true;
 
@@ -921,6 +923,7 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_color4(L"keyboard_selected_tag_background_color", KEYBOARD_SELECTED_TAG_BACKGROUND_COLRO);
     add_float(L"synctex_highlight_timeout", &HIDE_SYNCTEX_HIGHLIGHT_TIMEOUT, FloatExtras{-1.0f, 100.0f});
     add_float(L"link_destination_highlight_timeout", &HIDE_SYNCTEX_HIGHLIGHT_TIMEOUT, FloatExtras{-1.0f, 100.0f});
+    add_float(L"grayscale_white_point", &GRAYSCALE_WHITE_POINT, FloatExtras{0.1f, 1.0f});
     add_float(L"dark_mode_contrast", &DARK_MODE_CONTRAST, FloatExtras{0.0f, 1.0f});
     add_float(L"freetext_bookmark_font_size", &FREETEXT_BOOKMARK_FONT_SIZE, FloatExtras{0.0f, 100.0f});
     add_float(L"custom_color_contrast", &CUSTOM_COLOR_CONTRAST, FloatExtras{0.0f, 1.0f});
@@ -1012,6 +1015,7 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_bool(L"use_legacy_keybinds", &USE_LEGACY_KEYBINDS);
     add_bool(L"multiline_menus", &MULTILINE_MENUS);
     add_bool(L"start_with_helper_window", &START_WITH_HELPER_WINDOW);
+    add_bool(L"use_multiply_highlight_blend", &USE_MULTIPLY_HIGHLIGHT_BLEND);
     add_bool(L"lighten_colors_when_embedding_annotations", &LIGHTEN_COLORS_WHEN_EMBEDDING_ANNOTATIONS);
     add_bool(L"prerender_next_page_presentation", &PRERENDER_NEXT_PAGE);
     add_bool(L"highlight_middle_click", &HIGHLIGHT_MIDDLE_CLICK);

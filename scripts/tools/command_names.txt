@@ -470,6 +470,7 @@ toggle_drawing_mask
 toggle_fastread
 toggle_freehand_drawing_mode
 toggle_fullscreen
+toggle_grayscale_mode
 toggle_highlight
 toggle_horizontal_scroll_lock
 toggle_mouse_drag_mode

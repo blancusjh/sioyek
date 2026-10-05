@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
 set -e
-# prerequisite: brew install qt@5 freeglut mesa harfbuzz
+# Prerequisites: Qt 6.8.x, Xcode, freeglut, mesa, and harfbuzz.
+# On Apple Silicon, the Qt 6.8.x host tools shipped by aqtinstall need to
+# run under Rosetta, while the application itself must be built for arm64.
 
 #sys_glut_clfags=`pkg-config --cflags glut gl`
 #sys_glut_libs=`pkg-config --libs glut gl`
@@ -10,6 +12,18 @@ set -e
 if [ -z ${MAKE_PARALLEL+x} ]; then export MAKE_PARALLEL=1; else echo "MAKE_PARALLEL defined"; fi
 echo "MAKE_PARALLEL set to $MAKE_PARALLEL"
 
+QMAKE_CMD=(qmake)
+MACDEPLOYQT_CMD=(macdeployqt)
+QT_HOST_TOOLS_PREFIX=""
+QMAKE_TARGET_ARCH=""
+
+if [[ "$(uname -m)" == "arm64" ]]; then
+	QMAKE_CMD=(arch -x86_64 qmake)
+	MACDEPLOYQT_CMD=(arch -x86_64 macdeployqt)
+	QT_HOST_TOOLS_PREFIX="arch -x86_64 "
+	QMAKE_TARGET_ARCH=" QMAKE_APPLE_DEVICE_ARCHS=arm64"
+fi
+
 cd mupdf
 #make USE_SYSTEM_HARFBUZZ=yes USE_SYSTEM_GLUT=yes SYS_GLUT_CFLAGS="${sys_glut_clfags}" SYS_GLUT_LIBS="${sys_glut_libs}" SYS_HARFBUZZ_CFLAGS="${sys_harfbuzz_clfags}" SYS_HARFBUZZ_LIBS="${sys_harfbuzz_libs}" -j 4
 make HAVE_GLUT=no -j$MAKE_PARALLEL
@@ -18,9 +32,22 @@ cd ..
 sed -Ei '' "s/QMAKE_MACOSX_DEPLOYMENT_TARGET.=.[0-9]+/QMAKE_MACOSX_DEPLOYMENT_TARGET = $(sw_vers -productVersion | cut -d. -f1)/" pdf_viewer_build_config.pro
 
 if [[ $1 == portable ]]; then
-	qmake pdf_viewer_build_config.pro
+	# shellcheck disable=SC2086
+	"${QMAKE_CMD[@]}" $QMAKE_TARGET_ARCH pdf_viewer_build_config.pro
 else
-	qmake "CONFIG+=non_portable" pdf_viewer_build_config.pro
+	# shellcheck disable=SC2086
+	"${QMAKE_CMD[@]}" $QMAKE_TARGET_ARCH "CONFIG+=non_portable" pdf_viewer_build_config.pro
+fi
+
+# qmake sees the x86_64 host tool on Apple Silicon, so the project file's
+# host-architecture test cannot add this arm64/Xcode 26 compatibility flag.
+if [[ "$(uname -m)" == "arm64" ]]; then
+	sed -i '' 's/^CXXFLAGS      = /CXXFLAGS      = -include arm_acle.h /' Makefile
+	# Use Rosetta for Qt's code generators; clang still compiles arm64 objects.
+	sed -i '' \
+		-e "s#$(command -v moc)#${QT_HOST_TOOLS_PREFIX}$(command -v moc)#g" \
+		-e "s#$(command -v rcc)#${QT_HOST_TOOLS_PREFIX}$(command -v rcc)#g" \
+		Makefile
 fi
 
 # Qt 6.8.x still links the legacy AGL framework, which is absent from the
@@ -62,10 +89,21 @@ fi
 
 sleep 5
 
-# mac deploys with qml currently don't work due to a qt bug
-# macdeployqt build/sioyek.app -qmldir=./pdf_viewer/touchui -dmg
-macdeployqt build/sioyek.app -dmg
+# macdeployqt can bundle the application even when this environment cannot
+# create a DMG (for example, when hdiutil is unavailable in a sandbox).
+# Set MAKE_DMG=0 for a faster app-only build.
+if [[ ${MAKE_DMG:-1} == 0 ]]; then
+	"${MACDEPLOYQT_CMD[@]}" build/sioyek.app
+else
+	if ! "${MACDEPLOYQT_CMD[@]}" build/sioyek.app -dmg; then
+		echo "WARNING: DMG creation failed; keeping the application bundle." >&2
+	fi
+fi
 
 codesign --force --deep --sign - build/sioyek.app
 
-zip -r sioyek-release-mac.zip build/sioyek.dmg
+if [[ -f build/sioyek.dmg ]]; then
+	zip -r sioyek-release-mac.zip build/sioyek.dmg
+else
+	echo "DMG not created; build/sioyek.app is ready to use."
+fi

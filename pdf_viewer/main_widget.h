@@ -412,6 +412,7 @@ public:
     void set_dark_mode();
     void set_light_mode();
     void set_custom_color_mode();
+    void set_grayscale_mode();
     void set_color_mode_to_system_theme();
     void toggle_statusbar();
     void toggle_titlebar();
@@ -565,6 +566,7 @@ public:
 
     void toggle_dark_mode();
     void toggle_custom_color_mode();
+    void toggle_grayscale_mode();
     void do_synctex_forward_search(const Path& pdf_file_path, const Path& latex_file_path, int line, int column);
     //void handle_args(const QStringList &arguments);
     void update_link_with_opened_book_state(Portal lnk, const OpenedBookState& new_state);

@@ -50,10 +50,12 @@ extern bool PRERENDER_NEXT_PAGE;
 extern int PRERENDERED_PAGE_COUNT;
 extern bool SHOULD_HIGHLIGHT_LINKS;
 extern bool SHOULD_HIGHLIGHT_UNSELECTED_SEARCH;
+extern bool USE_MULTIPLY_HIGHLIGHT_BLEND;
 extern float UNSELECTED_SEARCH_HIGHLIGHT_COLOR[3];
 extern int KEYBOARD_SELECT_FONT_SIZE;
 extern float CUSTOM_COLOR_CONTRAST;
 extern float DISPLAY_RESOLUTION_SCALE;
+extern float GRAYSCALE_WHITE_POINT;
 extern float KEYBOARD_SELECT_BACKGROUND_COLOR[4];
 extern float KEYBOARD_SELECT_TEXT_COLOR[4];
 extern bool ALPHABETIC_LINK_TAGS;
@@ -360,6 +362,7 @@ void PdfViewOpenGLWidget::initializeGL() {
 #ifdef SIOYEK_ANDROID
         shared_gl_objects.rendered_program = LoadShaders(Path(L":/pdf_viewer/shaders/simple.vertex"), Path(L":/pdf_viewer/shaders/simple.fragment"));
         shared_gl_objects.rendered_dark_program = LoadShaders(Path(L":/pdf_viewer/shaders/simple.vertex"), Path(L":/pdf_viewer/shaders/dark_mode.fragment"));
+        shared_gl_objects.rendered_grayscale_program = LoadShaders(Path(L":/pdf_viewer/shaders/simple.vertex"), Path(L":/pdf_viewer/shaders/grayscale.fragment"));
         shared_gl_objects.unrendered_program = LoadShaders(Path(L":/pdf_viewer/shaders/simple.vertex"), Path(L":/pdf_viewer/shaders/unrendered_page.fragment"));
         shared_gl_objects.highlight_program = LoadShaders(Path(L":/pdf_viewer/shaders/simple.vertex"), Path(L":/pdf_viewer/shaders/highlight.fragment"));
         shared_gl_objects.vertical_line_program = LoadShaders(Path(L":/pdf_viewer/shaders/simple.vertex"), Path(L":/pdf_viewer/shaders/vertical_bar.fragment"));
@@ -373,6 +376,7 @@ void PdfViewOpenGLWidget::initializeGL() {
 #else
         shared_gl_objects.rendered_program = LoadShaders(shader_path.slash(L"simple.vertex"), shader_path.slash(L"simple.fragment"));
         shared_gl_objects.rendered_dark_program = LoadShaders(shader_path.slash(L"simple.vertex"), shader_path.slash(L"dark_mode.fragment"));
+        shared_gl_objects.rendered_grayscale_program = LoadShaders(shader_path.slash(L"simple.vertex"), shader_path.slash(L"grayscale.fragment"));
         shared_gl_objects.unrendered_program = LoadShaders(shader_path.slash(L"simple.vertex"), shader_path.slash(L"unrendered_page.fragment"));
         shared_gl_objects.highlight_program = LoadShaders(shader_path.slash(L"simple.vertex"), shader_path.slash(L"highlight.fragment"));
         shared_gl_objects.vertical_line_program = LoadShaders(shader_path.slash(L"simple.vertex"), shader_path.slash(L"vertical_bar.fragment"));
@@ -386,6 +390,9 @@ void PdfViewOpenGLWidget::initializeGL() {
 #endif
 
         shared_gl_objects.dark_mode_contrast_uniform_location = glGetUniformLocation(shared_gl_objects.rendered_dark_program, "contrast");
+        shared_gl_objects.grayscale_contrast_uniform_location = glGetUniformLocation(shared_gl_objects.rendered_grayscale_program, "contrast");
+        shared_gl_objects.grayscale_inverted_uniform_location = glGetUniformLocation(shared_gl_objects.rendered_grayscale_program, "inverted");
+        shared_gl_objects.grayscale_white_point_uniform_location = glGetUniformLocation(shared_gl_objects.rendered_grayscale_program, "white_point");
         //shared_gl_objects.gamma_uniform_location = glGetUniformLocation(shared_gl_objects.rendered_program, "gamma");
 
         shared_gl_objects.highlight_color_uniform_location = glGetUniformLocation(shared_gl_objects.highlight_program, "highlight_color");
@@ -560,6 +567,12 @@ void PdfViewOpenGLWidget::render_highlight_window(GLuint program, NormalizedWind
     glEnable(GL_BLEND);
     if (flags & HighlightRenderFlags::HRF_INVERTED) {
         glBlendFuncSeparate(GL_ONE_MINUS_DST_COLOR, GL_ZERO, GL_ONE, GL_ZERO);
+    }
+    else if (flags & HighlightRenderFlags::HRF_MULTIPLY) {
+        glBlendFuncSeparate(GL_ZERO, GL_SRC_COLOR, GL_ONE, GL_ZERO);
+    }
+    else if (flags & HighlightRenderFlags::HRF_SCREEN) {
+        glBlendFuncSeparate(GL_ONE, GL_ONE_MINUS_SRC_COLOR, GL_ONE, GL_ZERO);
     }
     else {
         glBlendFuncSeparate(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA, GL_ONE, GL_ONE);
@@ -1222,7 +1235,9 @@ void PdfViewOpenGLWidget::render_page(int page_number, bool in_overview, ColorPa
             disable_stencil();
         }
 
-        if ((get_current_color_mode() != Normal) && (PRESERVE_IMAGE_COLORS) && (!in_overview) && (forced_color_palette == ColorPalette::None) && (stencils_allowed)) {
+        ColorPalette current_palette = get_current_color_mode();
+        bool can_preserve_image_colors = current_palette == Dark || current_palette == Custom;
+        if (!grayscale_mode && can_preserve_image_colors && PRESERVE_IMAGE_COLORS && (!in_overview) && (forced_color_palette == ColorPalette::None) && (stencils_allowed)) {
             // render images in forced palette mode
             fz_stext_page * stext_page = document_view->get_document()->get_stext_with_page_number(page_number);
             std::vector<PagelessDocumentRect> image_rects;
@@ -2321,9 +2336,27 @@ void PdfViewOpenGLWidget::toggle_custom_color_mode() {
     set_custom_color_mode(!(this->color_mode == ColorPalette::Custom));
 }
 
+void PdfViewOpenGLWidget::set_grayscale_mode(bool mode) {
+    grayscale_mode = mode;
+}
+
+void PdfViewOpenGLWidget::toggle_grayscale_mode() {
+    set_grayscale_mode(!grayscale_mode);
+}
+
+bool PdfViewOpenGLWidget::get_grayscale_mode() const {
+    return grayscale_mode;
+}
+
 void PdfViewOpenGLWidget::bind_program(ColorPalette forced_palette) {
     ColorPalette mode = forced_palette == None ? color_mode : forced_palette;
-    if (mode == ColorPalette::Dark) {
+    if (grayscale_mode && (mode == ColorPalette::Normal || mode == ColorPalette::Dark)) {
+        glUseProgram(shared_gl_objects.rendered_grayscale_program);
+        glUniform1f(shared_gl_objects.grayscale_contrast_uniform_location, DARK_MODE_CONTRAST);
+        glUniform1i(shared_gl_objects.grayscale_inverted_uniform_location, mode == ColorPalette::Dark);
+        glUniform1f(shared_gl_objects.grayscale_white_point_uniform_location, GRAYSCALE_WHITE_POINT);
+    }
+    else if (mode == ColorPalette::Dark) {
         glUseProgram(shared_gl_objects.rendered_dark_program);
         glUniform1f(shared_gl_objects.dark_mode_contrast_uniform_location, DARK_MODE_CONTRAST);
     }
@@ -3633,14 +3666,7 @@ void PdfViewOpenGLWidget::render_highlight_annotations(){
         for (size_t ind = 0; ind < visible_highlight_indices.size(); ind++) {
             int i = visible_highlight_indices[ind];
                 for (size_t j = 0; j < highlights[i].highlight_rects.size(); j++) {
-                    //glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &HIGHLIGHT_COLORS[(highlights[i].type - 'a') * 3]);
                     auto adjusted_highlight_color = cc3(get_highlight_type_color(highlights[i].type));
-                    get_color_for_current_mode(get_highlight_type_color(highlights[i].type), &adjusted_highlight_color[0]);
-
-                    //glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, get_highlight_type_color(highlights[i].type));
-                    glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &adjusted_highlight_color[0]);
-                    glUniform1f(shared_gl_objects.highlight_opacity_uniform_location, 0.3f);
-
                     int flags = 0;
                     if (std::isupper(highlights[i].type)) {
                         flags |= HRF_UNDERLINE;
@@ -3650,13 +3676,35 @@ void PdfViewOpenGLWidget::render_highlight_annotations(){
                     }
                     if (flags == 0) {
                         flags |= HRF_FILL;
-                        if (i == selected_highlight_index) {
-                            flags |= HRF_BORDER;
+                        if (USE_MULTIPLY_HIGHLIGHT_BLEND) {
+                            constexpr float highlight_opacity = 0.3f;
+                            if (color_mode == ColorPalette::Dark) {
+                                for (float& channel : adjusted_highlight_color) {
+                                    channel *= highlight_opacity;
+                                }
+                                flags |= HRF_SCREEN;
+                            }
+                            else {
+                                for (float& channel : adjusted_highlight_color) {
+                                    channel = 1.0f - highlight_opacity + highlight_opacity * channel;
+                                }
+                                flags |= HRF_MULTIPLY;
+                            }
                         }
                     }
+                    glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &adjusted_highlight_color[0]);
+                    glUniform1f(shared_gl_objects.highlight_opacity_uniform_location, 0.3f);
                     render_highlight_absolute(shared_gl_objects.highlight_program,
                             highlights[i].highlight_rects[j],
                             flags);
+
+                    if ((flags & HRF_FILL) && i == selected_highlight_index) {
+                        adjusted_highlight_color = cc3(get_highlight_type_color(highlights[i].type));
+                        glUniform3fv(shared_gl_objects.highlight_color_uniform_location, 1, &adjusted_highlight_color[0]);
+                        render_highlight_absolute(shared_gl_objects.highlight_program,
+                                highlights[i].highlight_rects[j],
+                                HRF_BORDER);
+                    }
                 }
         }
     }

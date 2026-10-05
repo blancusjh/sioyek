@@ -1,0 +1,19 @@
+precision mediump float;
+
+out vec4 color;
+in vec2 uvs;
+
+uniform sampler2D pdf_texture;
+uniform float contrast;
+uniform float white_point;
+uniform bool inverted;
+
+void main(){
+    vec3 pdf_color = texture(pdf_texture, uvs).rgb;
+    float luminance = dot(pdf_color, vec3(0.2126, 0.7152, 0.0722));
+    luminance = clamp(luminance / white_point, 0.0, 1.0);
+    if (inverted) {
+        luminance = (0.5 - luminance) * contrast + 0.5;
+    }
+    color = vec4(vec3(luminance), 1.0);
+}

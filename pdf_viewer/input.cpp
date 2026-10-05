@@ -4618,6 +4618,20 @@ public:
     bool requires_document() { return false; }
 };
 
+class ToggleGrayscaleModeCommand : public Command {
+public:
+    static inline const std::string cname = "toggle_grayscale_mode";
+    static inline const std::string hname = "Toggle grayscale mode";
+
+    ToggleGrayscaleModeCommand(MainWidget* w) : Command(cname, w) {};
+
+    void perform() {
+        widget->toggle_grayscale_mode();
+    }
+
+    bool requires_document() { return false; }
+};
+
 class TogglePresentationModeCommand : public Command {
 public:
     static inline const std::string cname = "toggle_presentation_mode";
@@ -7216,6 +7230,7 @@ CommandManager::CommandManager(ConfigManager* config_manager) {
     register_command<MoveVisualMarkNextCommand>();
     register_command<MoveVisualMarkPrevCommand>();
     register_command<ToggleCustomColorMode>();
+    register_command<ToggleGrayscaleModeCommand>();
     register_command<SetSelectHighlightTypeCommand>();
     register_command<SetFreehandType>();
     register_command<SetFreehandAlphaCommand>();

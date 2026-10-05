@@ -123,6 +123,18 @@ You can customize all key bindings and some UI elements by editing `keys_user.co
 
 ## Build Instructions
 
+### Personal build (blancusjh)
+
+This fork preserves the local Mac source, including grayscale PDF rendering
+(`toggle_grayscale_mode`, `grayscale_white_point`) and multiply-blended
+highlights (`use_multiply_highlight_blend`). The `personal-build` branch is the
+saved version for use on other machines.
+
+Use [BUILDING-LINUX.md](BUILDING-LINUX.md) for Linux and
+[BUILDING-MAC.md](BUILDING-MAC.md) for the local Mac setup. This development
+source needs **Qt 6.7 or 6.8**; the older Qt 5 Linux instructions below are
+retained from upstream.
+
 ### Linux
 
 #### Fedora

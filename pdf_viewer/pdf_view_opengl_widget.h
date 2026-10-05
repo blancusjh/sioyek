@@ -41,7 +41,9 @@ enum HighlightRenderFlags
     HRF_BORDER = 1 << 1,
     HRF_UNDERLINE = 1 << 2,
     HRF_STRIKE = 1 << 3,
-    HRF_INVERTED = 1 << 4
+    HRF_INVERTED = 1 << 4,
+    HRF_MULTIPLY = 1 << 5,
+    HRF_SCREEN = 1 << 6
 };
 
 
@@ -52,6 +54,7 @@ struct OpenGLSharedResources {
     GLuint line_points_buffer_object = 0;
     GLuint rendered_program = 0;
     GLuint rendered_dark_program = 0;
+    GLuint rendered_grayscale_program = 0;
     GLuint custom_color_program = 0;
     GLuint unrendered_program = 0;
     GLuint highlight_program = 0;
@@ -64,6 +67,9 @@ struct OpenGLSharedResources {
     GLuint compiled_dots_program = 0;
 
     GLint dark_mode_contrast_uniform_location = 0;
+    GLint grayscale_contrast_uniform_location = 0;
+    GLint grayscale_inverted_uniform_location = 0;
+    GLint grayscale_white_point_uniform_location = 0;
     GLint highlight_color_uniform_location = 0;
     GLint highlight_opacity_uniform_location = 0;
     GLint line_color_uniform_location = 0;
@@ -125,6 +131,7 @@ private:
     bool should_show_numbers = false;
     bool should_show_rect_hints = false;
     ColorPalette color_mode = ColorPalette::Normal;
+    bool grayscale_mode = false;
     bool is_helper = false;
     float percent_done = 0.0f;
     std::string tag_prefix = "";
@@ -256,6 +263,9 @@ public:
     void toggle_dark_mode();
     void set_custom_color_mode(bool mode);
     void toggle_custom_color_mode();
+    void set_grayscale_mode(bool mode);
+    void toggle_grayscale_mode();
+    bool get_grayscale_mode() const;
     void set_synctex_highlights(std::vector<DocumentRect> highlights);
     bool should_show_synxtex_highlights();
     bool has_synctex_timed_out();

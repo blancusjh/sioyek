@@ -5,6 +5,7 @@
         <file>pdf_viewer/prefs.config</file>
         <file>pdf_viewer/shaders/custom_colors.fragment</file>
         <file>pdf_viewer/shaders/dark_mode.fragment</file>
+        <file>pdf_viewer/shaders/grayscale.fragment</file>
         <file>pdf_viewer/shaders/debug.fragment</file>
         <file>pdf_viewer/shaders/highlight.fragment</file>
         <file>pdf_viewer/shaders/separator.fragment</file>
