@@ -387,6 +387,8 @@ CMakeCache.txt
 .DS_STORE
 tutorial/*.blg
 
+xcodebuild/*
+
 #Nix generated
 result
 flake*

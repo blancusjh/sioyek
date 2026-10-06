@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.16)
 project(sioyek VERSION 2.0.0 LANGUAGES C CXX)
 
-set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_INCLUDE_CURRENT_DIR ON)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
@@ -22,6 +22,10 @@ else()
         Core Gui Widgets Network OpenGL QuickWidgets
         Svg TextToSpeech OpenGLExtensions
   )
+endif()
+
+if(APPLE AND TARGET WrapOpenGL::WrapOpenGL)
+  set_property(TARGET WrapOpenGL::WrapOpenGL PROPERTY INTERFACE_LINK_LIBRARIES "-framework OpenGL")
 endif()
 
 qt_standard_project_setup()
@@ -75,6 +79,27 @@ qt_add_executable(sioyek WIN32 MACOSX_BUNDLE
 )
 
 if(APPLE)
+    file(GLOB_RECURSE SIOYEK_SHADER_FILES CONFIGURE_DEPENDS
+      "${CMAKE_CURRENT_SOURCE_DIR}/pdf_viewer/shaders/*"
+    )
+
+    target_sources(sioyek PRIVATE
+      pdf_viewer/keys.config
+      pdf_viewer/prefs.config
+      ${SIOYEK_SHADER_FILES}
+    )
+
+    set_source_files_properties(
+      pdf_viewer/keys.config
+      pdf_viewer/prefs.config
+        PROPERTIES MACOSX_PACKAGE_LOCATION "Resources"
+    )
+
+    set_source_files_properties(
+      ${SIOYEK_SHADER_FILES}
+        PROPERTIES MACOSX_PACKAGE_LOCATION "Resources/shaders"
+    )
+
   target_sources(sioyek PRIVATE
         pdf_viewer/macos_specific.mm
   )

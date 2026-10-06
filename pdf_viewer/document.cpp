@@ -60,6 +60,7 @@ extern bool DEBUG;
 extern bool EXACT_HIGHLIGHT_SELECT;
 extern std::wstring ANNOTATIONS_DIR_PATH;
 extern bool LIGHTEN_COLORS_WHEN_EMBEDDING_ANNOTATIONS;
+extern bool USE_PAGE_LABELS_IN_TABLE_OF_CONTENTS;
 
 int Document::get_mark_index(char symbol) {
     for (size_t i = 0; i < marks.size(); i++) {
@@ -1119,6 +1120,9 @@ void Document::load_page_dimensions(bool force_load_now) {
                 fz_page* page = fz_load_page(context_, doc_, i);
                 fz_page_label(context_, page, label_buffer, N);
                 page_labels_.push_back(utf8_decode(label_buffer));
+                if (page_labels_.back().size() == 0) {
+                    page_labels_.back() = std::to_wstring(i + 1);
+                }
                 PagelessDocumentRect page_rect = fz_bound_page(context_, page);
 
                 float page_height = page_rect.y1 - page_rect.y0;
@@ -1344,7 +1348,12 @@ DocumentPos Document::absolute_to_page_pos_uncentered(AbsoluteDocumentPos absolu
 
 QStandardItemModel* Document::get_toc_model() {
     if (!cached_toc_model) {
-        cached_toc_model = get_model_from_toc(get_toc());
+        if (USE_PAGE_LABELS_IN_TABLE_OF_CONTENTS){
+            cached_toc_model = get_model_from_toc(get_toc(), page_labels);
+        }
+        else{
+            cached_toc_model = get_model_from_toc(get_toc(), {});
+        }
     }
     return cached_toc_model;
 }
@@ -2259,6 +2268,180 @@ void Document::import_annotations() {
         }
     }
 }
+
+struct PdfOutlineResult {
+    pdf_obj* first = nullptr;
+    pdf_obj* last = nullptr;
+    int count = 0;
+};
+
+PdfOutlineResult build_pdf_outline_tree(
+    fz_context* ctx,
+    pdf_document* pdf_doc,
+    pdf_obj* parent_dict,
+    const std::vector<TocNode*>& nodes,
+    int page_count)
+{
+    PdfOutlineResult result;
+    if (nodes.empty()) {
+        return result;
+    }
+
+    pdf_obj* prev_obj = nullptr;
+
+    for (TocNode* node : nodes) {
+        if (!node) continue;
+
+        pdf_obj* item_dict = pdf_add_new_dict(ctx, pdf_doc, 8);
+
+        // Set /Parent
+        pdf_dict_put(ctx, item_dict, PDF_NAME(Parent), parent_dict);
+
+        // Set /Title
+        std::string title_utf8 = utf8_encode(node->title);
+        pdf_dict_put_text_string(ctx, item_dict, PDF_NAME(Title), title_utf8.c_str());
+
+        // Set /Dest
+        if (node->page >= 0 && node->page < page_count) {
+            pdf_obj* page_obj = pdf_lookup_page_obj(ctx, pdf_doc, node->page);
+            if (page_obj) {
+                fz_matrix page_ctm;
+                pdf_page_obj_transform(ctx, page_obj, nullptr, &page_ctm);
+                fz_point destination = fz_transform_point_xy(node->x, node->y, page_ctm);
+
+                pdf_obj* dest = pdf_new_array(ctx, pdf_doc, 5);
+                pdf_array_push(ctx, dest, page_obj);
+                pdf_array_push(ctx, dest, PDF_NAME(XYZ));
+                pdf_array_push_real(ctx, dest, destination.x);
+                pdf_array_push_real(ctx, dest, destination.y);
+                pdf_array_push(ctx, dest, PDF_NULL);
+                pdf_dict_put_drop(ctx, item_dict, PDF_NAME(Dest), dest);
+            }
+        }
+
+        // Recursively build children
+        PdfOutlineResult child_res = build_pdf_outline_tree(ctx, pdf_doc, item_dict, node->children, page_count);
+        if (child_res.first) {
+            pdf_dict_put(ctx, item_dict, PDF_NAME(First), child_res.first);
+            pdf_dict_put(ctx, item_dict, PDF_NAME(Last), child_res.last);
+            pdf_dict_put_int(ctx, item_dict, PDF_NAME(Count), child_res.count);
+            pdf_drop_obj(ctx, child_res.first);
+        }
+
+        // Link with previous sibling
+        if (prev_obj) {
+            pdf_dict_put(ctx, prev_obj, PDF_NAME(Next), item_dict);
+            pdf_dict_put(ctx, item_dict, PDF_NAME(Prev), prev_obj);
+            pdf_drop_obj(ctx, item_dict);
+        } else {
+            result.first = item_dict;
+        }
+
+        result.last = item_dict;
+        result.count += 1 + child_res.count;
+
+        prev_obj = item_dict;
+    }
+
+    return result;
+}
+
+QJsonObject json_object_from_toc_node(const TocNode* node){
+
+    if (node == nullptr) {
+        return QJsonObject();
+    }
+
+    QJsonObject result;
+    result["page"] = node->page;
+    result["title"] = QString::fromStdWString(node->title);
+    result["x"] = node->x;
+    result["y"] = node->y;
+
+    if (node->children.size() > 0){
+        QJsonArray children;
+
+        for (const TocNode* child : node->children) {
+            children.append(json_object_from_toc_node(child));
+        }
+
+        result["children"] = children;
+    }
+
+    return result;
+}
+
+void Document::export_generated_toc(std::wstring new_file_path) {
+    QJsonDocument doc;
+
+    QJsonArray top_level_objects;
+    for (const TocNode* node : created_top_level_toc_nodes) {
+        top_level_objects.append(json_object_from_toc_node(node));
+    }
+    doc.setArray(top_level_objects);
+
+    QFile json_file(QString::fromStdWString(new_file_path));
+    if (json_file.open(QFile::WriteOnly)){
+        json_file.write(doc.toJson());
+        json_file.close();
+    }
+}
+
+void Document::embed_generated_toc(std::wstring new_file_path) {
+    pdf_document* pdf_doc = pdf_specifics(context, doc);
+    if (pdf_doc == nullptr || created_top_level_toc_nodes.empty()) {
+        return;
+    }
+
+    std::string new_file_path_utf8 = utf8_encode(new_file_path);
+    fz_output* output_file = nullptr;
+    pdf_obj* outlines_dict = nullptr;
+
+    fz_try(context) {
+        output_file = fz_new_output_with_path(context, new_file_path_utf8.c_str(), 0);
+
+        pdf_obj* trailer = pdf_trailer(context, pdf_doc);
+        pdf_obj* root = pdf_dict_get(context, trailer, PDF_NAME(Root));
+        if (root == nullptr) {
+            fz_throw(context, FZ_ERROR_FORMAT, "PDF has no catalog");
+        }
+
+        outlines_dict = pdf_add_new_dict(context, pdf_doc, 4);
+        pdf_dict_put(context, outlines_dict, PDF_NAME(Type), PDF_NAME(Outlines));
+
+        PdfOutlineResult top_res = build_pdf_outline_tree(
+            context,
+            pdf_doc,
+            outlines_dict,
+            created_top_level_toc_nodes,
+            pdf_count_pages(context, pdf_doc));
+        if (top_res.first) {
+            pdf_dict_put(context, outlines_dict, PDF_NAME(First), top_res.first);
+            pdf_dict_put(context, outlines_dict, PDF_NAME(Last), top_res.last);
+            pdf_dict_put_int(context, outlines_dict, PDF_NAME(Count), top_res.count);
+            pdf_drop_obj(context, top_res.first);
+        }
+
+        // Assigning this key replaces any outline already present in the PDF.
+        pdf_dict_put(context, root, PDF_NAME(Outlines), outlines_dict);
+
+        pdf_write_options pwo{};
+        pdf_write_document(context, pdf_doc, output_file, &pwo);
+    }
+    fz_always(context) {
+        if (outlines_dict) {
+            pdf_drop_obj(context, outlines_dict);
+        }
+        if (output_file) {
+            fz_close_output(context, output_file);
+            fz_drop_output(context, output_file);
+        }
+    }
+    fz_catch(context) {
+        show_error_message(L"Could not embed the generated table of contents. Make sure the output file is writable.");
+    }
+}
+
 
 void Document::embed_annotations(std::wstring new_file_path) {
 

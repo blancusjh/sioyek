@@ -234,6 +234,7 @@ private:
     std::function<void(T*)> on_delete_function = nullptr;
     std::function<void(T*)> on_edit_function = nullptr;
     int n_cols = 1;
+    bool last_column_fixed = false;
 
 protected:
 
@@ -251,10 +252,12 @@ public:
         int selected_index,
         std::function<void(T*)> on_done,
         MainWidget* parent,
-        std::function<void(T*)> on_delete_function = nullptr) : BaseSelectorWidget(new QTableView(), fuzzy, nullptr, parent),
+        std::function<void(T*)> on_delete_function = nullptr,
+        bool last_column_fixed = false) : BaseSelectorWidget(new QTableView(), fuzzy, nullptr, parent),
         values(values),
         on_done(on_done),
-        on_delete_function(on_delete_function)
+        on_delete_function(on_delete_function),
+        last_column_fixed(last_column_fixed)
     {
         item_strings = table[0];
         QVector<QString> q_string_list;
@@ -301,7 +304,12 @@ public:
                 table_view->horizontalHeader()->setSectionResizeMode(i, QHeaderView::Stretch);
             }
 
-            table_view->horizontalHeader()->setSectionResizeMode(table.size() - 1, QHeaderView::ResizeToContents);
+            if (last_column_fixed) {
+                table_view->horizontalHeader()->setSectionResizeMode(table.size() - 1, QHeaderView::Fixed);
+            }
+            else {
+                table_view->horizontalHeader()->setSectionResizeMode(table.size() - 1, QHeaderView::ResizeToContents);
+            }
         }
 
         table_view->horizontalHeader()->hide();

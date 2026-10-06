@@ -346,6 +346,8 @@ public:
     int get_page_offset();
     void set_page_offset(int new_offset);
     void embed_annotations(std::wstring new_file_path);
+    void embed_generated_toc(std::wstring new_file_path);
+    void export_generated_toc(std::wstring new_file_path);
     void get_pdf_annotations(std::vector<BookMark>& pdf_bookmarks, std::vector<Highlight>& pdf_highlights, std::vector<FreehandDrawing>& pdf_drawings);
     void import_annotations();
     std::vector<PagelessDocumentRect> get_page_flat_words(int page);

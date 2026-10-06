@@ -2,7 +2,9 @@
 
 This saves the current local source, including grayscale rendering and highlight
 blending. It does not identify the exact source revision used for the older
-installed Mac binary. Linux compilation has not yet been tested for this snapshot.
+installed Mac binary. The merged source was compiled on 2026-10-05 in a Debian 13
+(trixie) ARM64 container with GCC 14 and Qt 6.8.2. Other distributions and x86_64
+machines have not yet been tested for this snapshot.
 
 ## Get the source
 
@@ -16,7 +18,7 @@ For an existing clone, run `git submodule update --init --recursive`.
 
 ## Dependencies
 
-Use Qt **6.7 or 6.8**, a C++17 compiler, make, pkg-config, HarfBuzz and OpenGL
+Use Qt **6.7 or 6.8**, a C++20 compiler, make, pkg-config, HarfBuzz and OpenGL
 development libraries. Required Qt modules include Core, GUI, Widgets, Network,
 OpenGL, OpenGLWidgets, QuickWidgets, SVG and TextToSpeech.
 
@@ -24,9 +26,17 @@ For Ubuntu/Debian, start with:
 
 ```bash
 sudo apt update
-sudo apt install build-essential git pkg-config python3-venv \
+sudo apt install build-essential git pkg-config python3-venv unzip \
     libharfbuzz-dev libgl1-mesa-dev libglu1-mesa-dev \
     libxrandr-dev libxi-dev libxcb-cursor0 libxkbcommon-x11-0 libspeechd2
+```
+
+On Debian 13, the distribution's Qt 6.8.2 development packages were used:
+
+```bash
+sudo apt install freeglut3-dev qt6-base-dev qt6-declarative-dev \
+    qt6-svg-dev qt6-speech-dev libqt6opengl6-dev
+export QMAKE=/usr/bin/qmake6
 ```
 
 If the distribution supplies Qt 6.7 or 6.8 with the required modules, use its

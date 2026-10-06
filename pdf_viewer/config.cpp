@@ -35,6 +35,9 @@ bool SIMPLIFY_FREEHAND_DRAWINGS = true;
 bool RECTO_VERSO_ADJUSTMENT = false;
 bool KEYBOARD_SELECT_INCLUSIVE = false;
 bool SHOW_COMMAND_HINTS = false;
+bool RESTORE_ALL_WINDOWS_ON_STARTUP = false;
+bool DISABLE_CURSOR_BLINKING = false;
+bool FREE_TOUCHPAD_MOVEMENT = false;
 
 #ifdef SIOYEK_MOBILE
 bool TOUCH_MODE = true;
@@ -126,6 +129,7 @@ int PERSIST_MILIES = 1000 * 60;
 int PAGE_PADDINGS = 0;
 int MAX_PENDING_REQUESTS = 31;
 bool FLAT_TABLE_OF_CONTENTS = false;
+bool USE_PAGE_LABELS_IN_TABLE_OF_CONTENTS = false;
 bool SHOULD_USE_MULTIPLE_MONITORS = false;
 bool SHOULD_CHECK_FOR_LATEST_VERSION_ON_STARTUP = false;
 bool DEFAULT_DARK_MODE = false;
@@ -144,6 +148,7 @@ std::wstring DEFAULT_OPEN_FILE_PATH = L"";
 std::wstring ANNOTATIONS_DIR_PATH = L"";
 bool SHOULD_LOAD_TUTORIAL_WHEN_NO_OTHER_FILE = true;
 bool OPEN_LAST_FILE_ON_STARTUP = true;
+bool FAIL_SAFE_AUTO_SAVE_SESSION = false;
 bool SHOULD_LAUNCH_NEW_INSTANCE = false;
 bool SHOULD_LAUNCH_NEW_WINDOW = false;
 bool SHOULD_DRAW_UNRENDERED_PAGES = false;
@@ -231,8 +236,8 @@ bool ALLOW_MAIN_VIEW_SCROLL_WHILE_IN_OVERVIEW = false;
 std::wstring CONTEXT_MENU_ITEMS = L"";
 std::wstring CONTEXT_MENU_ITEMS_FOR_SELECTED_TEXT = L"copy|add_highlight(a)|add_highlight(b)|add_highlight(c)";
 std::wstring CONTEXT_MENU_ITEMS_FOR_LINKS = L"";
-std::wstring CONTEXT_MENU_ITEMS_FOR_HIGHLIGHTS = L"delete_highlight|edit_selected_highlight|add_highlight(a)|add_highlight(b)|add_highlight(c)";
-std::wstring CONTEXT_MENU_ITEMS_FOR_BOOKMARKS = L"delete_visible_bookmark|edit_selected_bookmark|move_selected_bookmark";
+std::wstring CONTEXT_MENU_ITEMS_FOR_HIGHLIGHTS = L"delete_highlight|edit_selected_annotation|add_highlight(a)|add_highlight(b)|add_highlight(c)";
+std::wstring CONTEXT_MENU_ITEMS_FOR_BOOKMARKS = L"delete_visible_annotation|edit_selected_annotation|move_selected_bookmark";
 std::wstring CONTEXT_MENU_ITEMS_FOR_OVERVIEW = L"";
 
 bool RIGHT_CLICK_CONTEXT_MENU = false;
@@ -964,6 +969,7 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_bool(L"use_custom_color_as_dark_system_theme", &USE_CUSTOM_COLOR_FOR_DARK_SYSTEM_THEME);
     add_bool(L"render_freetext_borders", &RENDER_FREETEXT_BORDERS);
     add_bool(L"flat_toc", &FLAT_TABLE_OF_CONTENTS);
+    add_bool(L"page_labels_in_table_of_contents", &USE_PAGE_LABELS_IN_TABLE_OF_CONTENTS);
     add_bool(L"adjust_annotation_colors_for_dark_mode", &ADJUST_ANNOTATION_COLORS_FOR_DARK_MODE);
     add_bool(L"right_click_context_menu", &SHOW_RIGHT_CLICK_CONTEXT_MENU);
     add_bool(L"preserve_image_colors_in_dark_mode", &PRESERVE_IMAGE_COLORS);
@@ -978,6 +984,7 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_bool(L"automatically_download_matching_paper_name", &AUTOMATICALLY_DOWNLOAD_MATCHING_PAPER_NAME);
     add_bool(L"should_load_tutorial_when_no_other_file", &SHOULD_LOAD_TUTORIAL_WHEN_NO_OTHER_FILE);
     add_bool(L"open_last_file_on_startup", &OPEN_LAST_FILE_ON_STARTUP);
+    add_bool(L"fail_safe_auto_save_session", &FAIL_SAFE_AUTO_SAVE_SESSION);
     add_bool(L"should_launch_new_instance", &SHOULD_LAUNCH_NEW_INSTANCE);
     add_bool(L"should_launch_new_window", &SHOULD_LAUNCH_NEW_WINDOW);
     add_bool(L"should_draw_unrendered_pages", &SHOULD_DRAW_UNRENDERED_PAGES);
@@ -1050,6 +1057,9 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_bool(L"recto_verso_adjustment", &RECTO_VERSO_ADJUSTMENT);
     add_bool(L"keyboard_select_inclusive", &KEYBOARD_SELECT_INCLUSIVE);
     add_bool(L"show_command_hints", &SHOW_COMMAND_HINTS);
+    add_bool(L"restore_all_windows_on_startup", &RESTORE_ALL_WINDOWS_ON_STARTUP);
+    add_bool(L"disable_cursor_blinking", &DISABLE_CURSOR_BLINKING);
+    add_bool(L"free_touchpad_movement", &FREE_TOUCHPAD_MOVEMENT);
 
     add_string(L"google_scholar_address", &GOOGLE_SCHOLAR_ADDRESS);
     add_string(L"item_list_prefix", &ITEM_LIST_PREFIX);

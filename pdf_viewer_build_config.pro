@@ -21,7 +21,7 @@ else{
 }
 
 
-CONFIG += c++17
+CONFIG += c++20
 DEFINES += QT_3DINPUT_LIB QT_OPENGL_LIB QT_OPENGLEXTENSIONS_LIB QT_WIDGETS_LIB
 
 RESOURCES += resources.qrc
@@ -172,7 +172,7 @@ win32{
 
 unix:!mac:!android {
 
-    QMAKE_CXXFLAGS += -std=c++17
+    QMAKE_CXXFLAGS += -std=c++20
 
     CONFIG(linux_app_image){
         LIBS += -ldl -Lmupdf/build/release -lmupdf -lmupdf-third -lmupdf-threads -lharfbuzz -lz
@@ -210,7 +210,7 @@ unix:!mac:!android {
 }
 
 mac {
-    QMAKE_CXXFLAGS += -std=c++17
+    QMAKE_CXXFLAGS += -std=c++20
     contains(QMAKE_HOST.arch, arm64) {
         # Xcode 26 requires the declaration of __yield used by Qt 6.8.x.
         QMAKE_CXXFLAGS += -include arm_acle.h

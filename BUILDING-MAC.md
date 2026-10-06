@@ -1,7 +1,8 @@
 # Building sioyek on this Mac
 
 Notes for the local arm64 setup (MacBook Air M4, macOS 26.5, Xcode 26.5).
-Verified working on 2026-09-01. See `README.md` for the generic instructions.
+Originally verified on 2026-09-01; updated for the upstream merge on 2026-10-05.
+See `README.md` for the generic instructions. The source now requires C++20.
 
 ## Prerequisites
 
@@ -86,10 +87,10 @@ So after the first `make` into a fresh bundle, do the bundling once:
 ```bash
 export PATH="$HOME/Library/Developer/Qt/6.8.2/macos/bin:$PATH"
 
-cp -r pdf_viewer/shaders sioyek.app/Contents/MacOS/shaders
+cp -r pdf_viewer/shaders sioyek.app/Contents/Resources/shaders
 cp pdf_viewer/prefs.config pdf_viewer/prefs_user.config \
    pdf_viewer/keys.config pdf_viewer/keys_user.config \
-   tutorial.pdf sioyek.app/Contents/MacOS/
+   tutorial.pdf sioyek.app/Contents/Resources/
 
 macdeployqt sioyek.app
 codesign --force --deep --sign - sioyek.app

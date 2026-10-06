@@ -500,6 +500,7 @@ bool handle_error(const QString& func_name, int error_code, char* error_message)
 }
 
 bool DatabaseManager::open(const std::wstring& local_db_file_path, const std::wstring& global_db_file_path) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::string local_database_file_path_utf8 = utf8_encode(local_db_file_path);
     int local_rc = sqlite3_open(local_database_file_path_utf8.c_str(), &local_db);
@@ -530,6 +531,7 @@ bool DatabaseManager::open(const std::wstring& local_db_file_path, const std::ws
 }
 
 bool DatabaseManager::create_opened_books_table() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     const char* create_opened_books_sql = "CREATE TABLE IF NOT EXISTS opened_books ("\
         "id INTEGER PRIMARY KEY AUTOINCREMENT,"\
@@ -546,6 +548,7 @@ bool DatabaseManager::create_opened_books_table() {
 }
 
 bool DatabaseManager::create_marks_table() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     const char* create_marks_sql = "CREATE TABLE IF NOT EXISTS marks ("\
         "id INTEGER PRIMARY KEY AUTOINCREMENT," \
         "document_path TEXT,"\
@@ -567,6 +570,7 @@ bool DatabaseManager::create_marks_table() {
 }
 
 bool DatabaseManager::create_bookmarks_table() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     const char* create_bookmarks_sql = "CREATE TABLE IF NOT EXISTS bookmarks ("\
         "id INTEGER PRIMARY KEY AUTOINCREMENT," \
         "document_path TEXT,"\
@@ -594,6 +598,7 @@ bool DatabaseManager::create_bookmarks_table() {
 }
 
 bool DatabaseManager::create_highlights_table() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     const char* create_highlights_sql = "CREATE TABLE IF NOT EXISTS highlights ("\
         "id INTEGER PRIMARY KEY AUTOINCREMENT," \
         "document_path TEXT,"\
@@ -617,6 +622,7 @@ bool DatabaseManager::create_highlights_table() {
 }
 
 bool DatabaseManager::create_document_hash_table() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     const char* create_document_hash_sql = "CREATE TABLE IF NOT EXISTS document_hash ("\
         "id INTEGER PRIMARY KEY AUTOINCREMENT," \
         "path TEXT,"\
@@ -632,6 +638,7 @@ bool DatabaseManager::create_document_hash_table() {
 }
 
 bool DatabaseManager::create_links_table() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     const char* create_marks_sql = "CREATE TABLE IF NOT EXISTS links ("\
         "id INTEGER PRIMARY KEY AUTOINCREMENT," \
         "creation_time timestamp,"\
@@ -668,6 +675,7 @@ bool DatabaseManager::create_links_table() {
 //}
 
 bool DatabaseManager::insert_document_hash(const std::wstring& path, const std::string& checksum) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     const char* delete_doc_sql = ""\
         "DELETE FROM document_hash WHERE path=";
@@ -693,6 +701,7 @@ bool DatabaseManager::insert_document_hash(const std::wstring& path, const std::
 }
 
 bool DatabaseManager::update_book(const std::string& path, float zoom_level, float offset_x, float offset_y, std::wstring actual_name) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "insert or replace into opened_books(path, zoom_level, offset_x, offset_y, last_access_time, document_name) values ('" <<
@@ -713,6 +722,7 @@ bool DatabaseManager::insert_mark(
     std::wstring uuid,
     std::optional<float> offset_x,
     std::optional<float> zoom_level) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     //todo: probably should escape symbol too
     std::wstringstream ss;
@@ -739,6 +749,7 @@ bool DatabaseManager::insert_mark(
 }
 
 bool DatabaseManager::delete_mark_with_symbol(char symbol) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "DELETE FROM marks where symbol='" << symbol << "';";
@@ -752,6 +763,7 @@ bool DatabaseManager::delete_mark_with_symbol(char symbol) {
 }
 
 bool DatabaseManager::delete_mark_with_uuid(const std::string& uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "DELETE FROM marks where uuid='" << esc(uuid) << "';";
@@ -765,6 +777,7 @@ bool DatabaseManager::delete_mark_with_uuid(const std::string& uuid) {
 }
 
 bool DatabaseManager::insert_bookmark(const std::string& document_path, const std::wstring& desc, float offset_y, std::wstring uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "INSERT INTO bookmarks (document_path, desc, offset_y, uuid, creation_time, modification_time) VALUES ('" << esc(document_path) << "', '" << esc(desc) << "', " << offset_y << ", '" << esc(uuid) << "', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);";
@@ -778,6 +791,7 @@ bool DatabaseManager::insert_bookmark(const std::string& document_path, const st
 }
 
 bool DatabaseManager::insert_bookmark_marked(const std::string& document_path, const std::wstring& desc, float offset_x, float offset_y, std::wstring uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "INSERT INTO bookmarks (document_path, desc, begin_x, begin_y, uuid, creation_time, modification_time) VALUES ('" << esc(document_path) << "', '" << esc(desc) << "', " << offset_x << " , " << offset_y << ", '" << esc(uuid) << "', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP);";
@@ -791,6 +805,7 @@ bool DatabaseManager::insert_bookmark_marked(const std::string& document_path, c
 }
 
 bool DatabaseManager::insert_bookmark_freetext(const std::string& document_path, const BookMark& bm) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "INSERT INTO bookmarks (document_path, desc, begin_x, begin_y, end_x, end_y, color_red, color_green, color_blue, font_size, font_face, uuid, creation_time, modification_time) VALUES ('"
@@ -823,6 +838,7 @@ bool DatabaseManager::insert_highlight(const std::string& document_path,
     float end_y,
     char type,
     std::wstring uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "INSERT INTO highlights (document_path, desc, type, begin_x, begin_y, end_x, end_y, uuid, creation_time, modification_time) VALUES ('" << esc(document_path) << "', '" << esc(desc) << "', '" <<
@@ -850,6 +866,7 @@ bool DatabaseManager::insert_highlight_with_annotation(const std::string& docume
     float end_y,
     char type,
     std::wstring uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "INSERT INTO highlights (document_path, desc, text_annot, type, begin_x, begin_y, end_x, end_y, uuid, creation_time, modification_time) VALUES ('" <<
@@ -878,6 +895,7 @@ bool DatabaseManager::insert_portal(const std::string& src_document_path,
     float dst_zoom_level,
     float src_offset_y,
     std::wstring uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     return generic_insert_run_query("links", { {"src_document", QString::fromStdString(src_document_path)},
                                               {"dst_document", QString::fromStdString(dst_document_path)},
@@ -900,6 +918,7 @@ bool DatabaseManager::insert_visible_portal(const std::string& src_checksum,
     float src_offset_x,
     float src_offset_y,
     std::wstring uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     return generic_insert_run_query("links", { {"src_document", QString::fromStdString(src_checksum)},
                                                      {"dst_document", QString::fromStdString(dst_checksum)},
@@ -915,6 +934,7 @@ bool DatabaseManager::insert_visible_portal(const std::string& src_checksum,
 }
 
 bool DatabaseManager::update_portal(const std::string& uuid, float dst_offset_x, float dst_offset_y, float dst_zoom_level) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "UPDATE links SET dst_offset_x=" << dst_offset_x << ", dst_offset_y=" << dst_offset_y <<
@@ -930,6 +950,7 @@ bool DatabaseManager::update_portal(const std::string& uuid, float dst_offset_x,
 }
 
 bool DatabaseManager::delete_portal(const std::string& uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "DELETE FROM links where uuid='" << esc(uuid) << "';";
@@ -943,6 +964,7 @@ bool DatabaseManager::delete_portal(const std::string& uuid) {
 }
 
 bool DatabaseManager::delete_bookmark(const std::string& uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     ss << "DELETE FROM bookmarks where uuid='" << esc(uuid) << "';";
@@ -956,6 +978,7 @@ bool DatabaseManager::delete_bookmark(const std::string& uuid) {
 }
 
 bool DatabaseManager::delete_highlight(const std::string& uuid) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     std::wstring threshold = QString::number(HIGHLIGHT_DELETE_THRESHOLD).toStdWString();
@@ -971,6 +994,7 @@ bool DatabaseManager::delete_highlight(const std::string& uuid) {
 }
 
 bool DatabaseManager::update_mark(const std::string& document_path, char symbol, float offset_y, std::optional<float> offset_x, std::optional<float> zoom_level) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstringstream ss;
     if (!offset_x.has_value()) {
@@ -989,6 +1013,7 @@ bool DatabaseManager::update_mark(const std::string& document_path, char symbol,
 }
 
 bool DatabaseManager::set_actual_document_name(const std::string& checksum, const std::wstring& actual_name) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "UPDATE opened_books set document_name='" << esc(actual_name) << "' where path='" << esc(checksum) << "';";
 
@@ -1002,6 +1027,7 @@ bool DatabaseManager::set_actual_document_name(const std::string& checksum, cons
 
 
 bool DatabaseManager::select_opened_book(const std::string& book_path, std::vector<OpenedBookState>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select zoom_level, offset_x, offset_y from opened_books where path='" << esc(book_path) << "'";
     char* error_message = nullptr;
@@ -1024,6 +1050,7 @@ bool DatabaseManager::select_opened_book(const std::string& book_path, std::vect
 //}
 
 bool DatabaseManager::delete_opened_book(const std::string& book_path) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "DELETE FROM opened_books where path='" << esc(book_path) << "'";
     char* error_message = nullptr;
@@ -1036,6 +1063,7 @@ bool DatabaseManager::delete_opened_book(const std::string& book_path) {
 
 
 bool DatabaseManager::select_opened_books_path_values(std::vector<std::wstring>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "SELECT path FROM opened_books order by datetime(last_access_time) desc;";
     char* error_message = nullptr;
@@ -1047,6 +1075,7 @@ bool DatabaseManager::select_opened_books_path_values(std::vector<std::wstring>&
 }
 
 bool DatabaseManager::select_opened_books_path_and_doc_names(std::vector<std::pair<std::wstring, std::wstring>>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "SELECT path, document_name FROM opened_books order by datetime(last_access_time) desc;";
     char* error_message = nullptr;
@@ -1080,6 +1109,7 @@ bool DatabaseManager::select_opened_books_path_and_doc_names(std::vector<std::pa
 //}
 
 bool DatabaseManager::select_mark(const std::string& book_path, std::vector<Mark>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select symbol, offset_y, offset_x, zoom_level, uuid, creation_time, modification_time from marks where document_path='" << esc(book_path) << "';";
 
@@ -1092,6 +1122,7 @@ bool DatabaseManager::select_mark(const std::string& book_path, std::vector<Mark
 }
 
 bool DatabaseManager::select_global_mark(char symbol, std::vector<std::pair<std::string, float>>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select document_path, offset_y from marks where symbol='" << symbol << "';";
 
@@ -1104,6 +1135,7 @@ bool DatabaseManager::select_global_mark(char symbol, std::vector<std::pair<std:
 }
 
 bool DatabaseManager::select_bookmark(const std::string& book_path, std::vector<BookMark>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select desc, offset_y, begin_x, begin_y, end_x, end_y, color_red, color_green, color_blue, font_size, font_face, uuid, creation_time, modification_time from bookmarks where document_path='" << esc(book_path) << "';";
 
@@ -1116,6 +1148,7 @@ bool DatabaseManager::select_bookmark(const std::string& book_path, std::vector<
 }
 
 bool DatabaseManager::get_path_from_hash(const std::string& checksum, std::vector<std::wstring>& out_paths) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select path from document_hash where hash='" << esc(checksum) << "';";
 
@@ -1128,6 +1161,7 @@ bool DatabaseManager::get_path_from_hash(const std::string& checksum, std::vecto
 }
 
 bool DatabaseManager::get_hash_from_path(const std::string& path, std::vector<std::wstring>& out_checksum) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select hash from document_hash where path='" << esc(path) << "';";
 
@@ -1140,6 +1174,7 @@ bool DatabaseManager::get_hash_from_path(const std::string& path, std::vector<st
 }
 
 bool DatabaseManager::get_prev_path_hash_pairs(std::vector<std::pair<std::wstring, std::wstring>>& out_pairs) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select path, hash from document_hash;";
 
@@ -1152,6 +1187,7 @@ bool DatabaseManager::get_prev_path_hash_pairs(std::vector<std::pair<std::wstrin
 }
 
 bool DatabaseManager::select_highlight(const std::string& book_path, std::vector<Highlight>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select desc, text_annot, begin_x, begin_y, end_x, end_y, type, uuid, creation_time, modification_time from highlights where document_path='" << esc(book_path) << "';";
 
@@ -1164,6 +1200,7 @@ bool DatabaseManager::select_highlight(const std::string& book_path, std::vector
 }
 
 bool DatabaseManager::select_highlight_with_type(const std::string& book_path, char type, std::vector<Highlight>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select desc, begin_x, begin_y, end_x, end_y, type, uuid, creation_time, modification_time from highlights where document_path='" << esc(book_path) << "' AND type='" << type << "';";
 
@@ -1176,6 +1213,7 @@ bool DatabaseManager::select_highlight_with_type(const std::string& book_path, c
 }
 
 bool DatabaseManager::global_select_highlight(std::vector<std::pair<std::string, Highlight>>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select document_path, desc, text_annot, type, begin_x, begin_y, end_x, end_y, uuid, creation_time, modification_time from highlights;";
 
@@ -1188,6 +1226,7 @@ bool DatabaseManager::global_select_highlight(std::vector<std::pair<std::string,
 }
 
 bool DatabaseManager::global_select_bookmark(std::vector<std::pair<std::string, BookMark>>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select document_path, desc, offset_y, begin_x, begin_y, end_x, end_y, uuid, creation_time, modification_time from bookmarks;";
 
@@ -1200,6 +1239,7 @@ bool DatabaseManager::global_select_bookmark(std::vector<std::pair<std::string, 
 }
 
 bool DatabaseManager::select_links(const std::string& src_document_path, std::vector<Portal>& out_result) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
     ss << "select dst_document, src_offset_y, src_offset_x, dst_offset_x, dst_offset_y, dst_zoom_level, uuid, creation_time, modification_time from links where src_document='" << esc(src_document_path) << "';";
 
@@ -1212,6 +1252,7 @@ bool DatabaseManager::select_links(const std::string& src_document_path, std::ve
 }
 
 void DatabaseManager::create_tables() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     create_opened_books_table();
     create_marks_table();
     create_bookmarks_table();
@@ -1258,6 +1299,7 @@ bool update_portal_path(sqlite3* db, const std::wstring& path, const std::wstrin
 }
 
 void DatabaseManager::upgrade_database_hashes() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     CachedChecksummer checksummer({});
 
     std::vector<std::wstring> prev_doc_paths;
@@ -1279,6 +1321,7 @@ void DatabaseManager::upgrade_database_hashes() {
 }
 
 void DatabaseManager::split_database(const std::wstring& local_database_path, const std::wstring& global_database_path, bool was_using_hashes) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     //we should only split when we have the same local and global database
     assert(local_db == global_db);
@@ -1403,6 +1446,7 @@ void DatabaseManager::split_database(const std::wstring& local_database_path, co
 
 
 void DatabaseManager::export_json(std::wstring json_file_path, CachedChecksummer* checksummer) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::set<std::string> seen_checksums;
 
@@ -1492,6 +1536,7 @@ std::vector<T> get_new_elements(const std::vector<T>& prev_elements, const std::
 }
 
 void DatabaseManager::import_json(std::wstring json_file_path, CachedChecksummer* checksummer) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     QFile json_file(QString::fromStdWString(json_file_path));
     json_file.open(QFile::ReadOnly);
@@ -1621,6 +1666,7 @@ std::string create_select_query(std::string table_name,
 }
 
 void DatabaseManager::ensure_database_compatibility(const std::wstring& local_db_file_path, const std::wstring& global_db_file_path) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     create_tables();
 
     // if the database is still using absolute paths instead of checksums, update all paths to checksums
@@ -1640,6 +1686,7 @@ void DatabaseManager::ensure_database_compatibility(const std::wstring& local_db
 }
 
 int DatabaseManager::get_version() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
 
     int version = -1;
@@ -1649,6 +1696,7 @@ int DatabaseManager::get_version() {
 }
 
 int DatabaseManager::set_version() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
 
     std::string query = QString("PRAGMA user_version = %1;").arg(DATABASE_VERSION).toStdString();
@@ -1657,6 +1705,7 @@ int DatabaseManager::set_version() {
 }
 
 void DatabaseManager::ensure_schema_compatibility() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     int database_file_version = get_version();
     std::vector<std::function<void()>> migrations;
     migrations.push_back([this]() { migrate_version_0_to_1(); });
@@ -1679,12 +1728,14 @@ void DatabaseManager::ensure_schema_compatibility() {
 }
 
 bool DatabaseManager::run_schema_query(const char* query) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
     int error_code = sqlite3_exec(global_db, query, null_callback, 0, &error_message);
     return handle_error("run_schema_query", error_code, error_message);
 }
 
 void DatabaseManager::migrate_version_1_to_2() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     qDebug() << "Migrating database from version 1 to 2";
 
     std::vector<std::string> queries_to_run;
@@ -1707,6 +1758,7 @@ void DatabaseManager::migrate_version_1_to_2() {
 }
 
 void DatabaseManager::migrate_version_0_to_1() {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     qDebug() << "Migrating database from version 0 to 1";
 
     std::vector<std::string> queries_to_run;
@@ -1804,6 +1856,7 @@ void DatabaseManager::migrate_version_0_to_1() {
 }
 
 bool DatabaseManager::select_all_mark_ids(std::vector<int>& mark_ids) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
     int error_code = sqlite3_exec(global_db, "select id from marks", id_callback, &mark_ids, &error_message);
     return handle_error(
@@ -1813,6 +1866,7 @@ bool DatabaseManager::select_all_mark_ids(std::vector<int>& mark_ids) {
 }
 
 bool DatabaseManager::select_all_marks(std::vector<MarkInDatabase>& marks){
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     const char* sql = "SELECT document_path, symbol, offset_y, offset_x, zoom_level, uuid FROM marks";
     char* error_message = nullptr;
     int error_code = sqlite3_exec(global_db, sql, mark_in_database_select_callback, &marks, &error_message);
@@ -1827,6 +1881,7 @@ bool DatabaseManager::select_all_marks(std::vector<MarkInDatabase>& marks){
 }
 
 bool DatabaseManager::select_all_bookmark_ids(std::vector<int>& bookmark_ids) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
     int error_code = sqlite3_exec(global_db, "select id from bookmarks", id_callback, &bookmark_ids, &error_message);
     return handle_error(
@@ -1836,6 +1891,7 @@ bool DatabaseManager::select_all_bookmark_ids(std::vector<int>& bookmark_ids) {
 }
 
 bool DatabaseManager::select_all_highlight_ids(std::vector<int>& highlight_ids) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
     int error_code = sqlite3_exec(global_db, "select id from highlights", id_callback, &highlight_ids, &error_message);
     return handle_error(
@@ -1845,6 +1901,7 @@ bool DatabaseManager::select_all_highlight_ids(std::vector<int>& highlight_ids) 
 }
 
 bool DatabaseManager::select_all_portal_ids(std::vector<int>& portal_ids) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     char* error_message = nullptr;
     int error_code = sqlite3_exec(global_db, "select id from links", id_callback, &portal_ids, &error_message);
     return handle_error(
@@ -1854,6 +1911,7 @@ bool DatabaseManager::select_all_portal_ids(std::vector<int>& portal_ids) {
 }
 
 bool DatabaseManager::update_highlight_add_annotation(const std::string& uuid, const std::wstring& text_annot) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     return generic_update_run_query("highlights",
         {
@@ -1866,6 +1924,7 @@ bool DatabaseManager::update_highlight_add_annotation(const std::string& uuid, c
 }
 
 bool DatabaseManager::update_highlight_type(const std::string& uuid, char new_type) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     return generic_update_run_query("highlights",
         {
@@ -1878,6 +1937,7 @@ bool DatabaseManager::update_highlight_type(const std::string& uuid, char new_ty
 }
 
 bool DatabaseManager::update_bookmark_change_text(const std::string& uuid, const std::wstring& new_text, float new_font_size) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     return generic_update_run_query("bookmarks",
         {
             {"uuid", QString::fromStdString(uuid)},
@@ -1889,6 +1949,7 @@ bool DatabaseManager::update_bookmark_change_text(const std::string& uuid, const
         });
 }
 bool DatabaseManager::update_bookmark_change_position(const std::string& uuid, AbsoluteDocumentPos new_begin, AbsoluteDocumentPos new_end) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
 
     return generic_update_run_query("bookmarks",
@@ -1906,6 +1967,7 @@ bool DatabaseManager::update_bookmark_change_position(const std::string& uuid, A
 }
 
 bool DatabaseManager::update_portal_change_src_position(const std::string& uuid, AbsoluteDocumentPos new_pos){
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream ss;
 
     return generic_update_run_query("links",
@@ -1939,6 +2001,7 @@ std::wstring encode_variant(QVariant var) {
 bool DatabaseManager::generic_update_run_query(std::string table_name,
     std::vector<std::pair<std::string, QVariant>> selections,
     std::vector<std::pair<std::string, QVariant>> updated_values) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstring query = generic_update_create_query(table_name, selections, updated_values);
 
     char* error_message = nullptr;
@@ -1951,6 +2014,7 @@ bool DatabaseManager::generic_update_run_query(std::string table_name,
 
 bool DatabaseManager::generic_insert_run_query(std::string table_name,
     std::vector<std::pair<std::string, QVariant>> values) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstring query = generic_insert_create_query(table_name, values);
 
     char* error_message = nullptr;
@@ -1963,6 +2027,7 @@ bool DatabaseManager::generic_insert_run_query(std::string table_name,
 
 std::wstring DatabaseManager::generic_insert_create_query(std::string table_name,
     std::vector<std::pair<std::string, QVariant>> values) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream query;
     query << "INSERT INTO " << esc(table_name) << " ( ";
 
@@ -1992,6 +2057,7 @@ std::wstring DatabaseManager::generic_insert_create_query(std::string table_name
 }
 
 bool DatabaseManager::update_file_name(std::wstring old_name, std::wstring new_name) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     std::wstring query = generic_update_create_query("document_hash",
         { {"path", QString::fromStdWString(old_name)} },
@@ -2008,6 +2074,7 @@ bool DatabaseManager::update_file_name(std::wstring old_name, std::wstring new_n
 std::wstring DatabaseManager::generic_update_create_query(std::string table_name,
     std::vector<std::pair<std::string, QVariant>> selections,
     std::vector<std::pair<std::string, QVariant>> updated_values) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::wstringstream query;
     query << "UPDATE " << esc(table_name) << " SET ";
 
@@ -2039,6 +2106,7 @@ std::wstring DatabaseManager::generic_update_create_query(std::string table_name
 }
 
 std::string DatabaseManager::get_annot_table_name(Annotation* annot) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
 
     if (dynamic_cast<BookMark*>(annot)) return "bookmarks";
     if (dynamic_cast<Highlight*>(annot)) return "highlights";
@@ -2048,6 +2116,7 @@ std::string DatabaseManager::get_annot_table_name(Annotation* annot) {
 }
 
 bool DatabaseManager::insert_annotation(Annotation* annot, std::string document_hash) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     auto fields = annot->to_tuples();
     if (dynamic_cast<Portal*>(annot)) {
         fields.push_back({ "src_document", QString::fromStdString(document_hash) });
@@ -2059,6 +2128,7 @@ bool DatabaseManager::insert_annotation(Annotation* annot, std::string document_
 }
 
 bool DatabaseManager::update_annotation(Annotation* annot) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     auto fields = annot->to_tuples();
 
     for (int i = 0; i < fields.size(); i++) {
@@ -2072,6 +2142,7 @@ bool DatabaseManager::update_annotation(Annotation* annot) {
 }
 
 bool DatabaseManager::delete_annotation(Annotation* annot) {
+    std::lock_guard<std::recursive_mutex> lock(db_mutex);
     std::string table = get_annot_table_name(annot);
     std::wstringstream ss;
     ss << "DELETE FROM " << esc(table) << " where uuid='" << esc(annot->uuid) << "';";

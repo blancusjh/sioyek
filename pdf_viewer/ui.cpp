@@ -1623,14 +1623,19 @@ bool BaseSelectorWidget::eventFilter(QObject* obj, QEvent* event) {
                 key_event->key() == Qt::Key_Left ||
                 key_event->key() == Qt::Key_Right
                 ) {
+                if (!line_edit->hasSelectedText()){
+                    bool is_tree = get_view_stylesheet_type_name() == "QTreeView";
+                    if (is_tree || (key_event->key() == Qt::Key_Down) || (key_event->key() == Qt::Key_Up)){
 #ifdef SIOYEK_QT6
-                QKeyEvent* newEvent = key_event->clone();
+                        QKeyEvent* newEvent = key_event->clone();
 #else
-                QKeyEvent* newEvent = new QKeyEvent(*key_event);
+                        QKeyEvent* newEvent = new QKeyEvent(*key_event);
 #endif
-                QCoreApplication::postEvent(get_view(), newEvent);
-                //QCoreApplication::postEvent(tree_view, key_event);
-                return true;
+                        QCoreApplication::postEvent(get_view(), newEvent);
+                        //QCoreApplication::postEvent(tree_view, key_event);
+                        return true;
+                    }
+                }
             }
             if (key_event->key() == Qt::Key_Tab) {
                 QKeyEvent* new_key_event = new QKeyEvent(key_event->type(), Qt::Key_Down, key_event->modifiers());
@@ -1653,11 +1658,13 @@ bool BaseSelectorWidget::eventFilter(QObject* obj, QEvent* event) {
                 return true;
             }
             if (((key_event->key() == Qt::Key_C) && is_control_pressed)) {
-                std::wstring text = get_selected_text();
-                if (text.size() > 0) {
-                    copy_to_clipboard(text);
+                if (!line_edit->hasSelectedText()){
+                    std::wstring text = get_selected_text();
+                    if (text.size() > 0) {
+                        copy_to_clipboard(text);
+                    }
+                    return true;
                 }
-                return true;
             }
             if (key_event->key() == Qt::Key_Return || key_event->key() == Qt::Key_Enter) {
                 std::optional<QModelIndex> selected_index = get_selected_index();

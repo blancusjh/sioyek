@@ -62,13 +62,13 @@ make -j$MAKE_PARALLEL
 rm -rf build 2> /dev/null
 mkdir build
 mv sioyek.app build/
-cp -r pdf_viewer/shaders build/sioyek.app/Contents/MacOS/shaders
+cp -r pdf_viewer/shaders build/sioyek.app/Contents/Resources/shaders
 
-cp pdf_viewer/prefs.config build/sioyek.app/Contents/MacOS/prefs.config
-cp pdf_viewer/prefs_user.config build/sioyek.app/Contents/MacOS/prefs_user.config
-cp pdf_viewer/keys.config build/sioyek.app/Contents/MacOS/keys.config
-cp pdf_viewer/keys_user.config build/sioyek.app/Contents/MacOS/keys_user.config
-cp tutorial.pdf build/sioyek.app/Contents/MacOS/tutorial.pdf
+cp pdf_viewer/prefs.config build/sioyek.app/Contents/Resources/prefs.config
+cp pdf_viewer/prefs_user.config build/sioyek.app/Contents/Resources/prefs_user.config
+cp pdf_viewer/keys.config build/sioyek.app/Contents/Resources/keys.config
+cp pdf_viewer/keys_user.config build/sioyek.app/Contents/Resources/keys_user.config
+cp tutorial.pdf build/sioyek.app/Contents/Resources/tutorial.pdf
 
 # Capture the current PATH
 CURRENT_PATH=$(echo $PATH)

@@ -1,4 +1,4 @@
-﻿// deduplicate database code
+// deduplicate database code
 // make sure jsons exported by previous sioyek versions can be imported
 // maybe: use a better method to handle deletion of canceled download portals
 // change find_closest_*_index and argminf to use the fact that the list is sorted and speed up the search (not important if there are not a ridiculous amount of highlight/bookmarks)
@@ -13,6 +13,7 @@
 // smartviewcandidates are not filled when right clicking on a link?
 
 
+#include "coordinates.h"
 #include <iostream>
 #include <vector>
 #include <string>
@@ -106,6 +107,7 @@ extern "C" void hideWindowTitleBar(WId);
 extern int next_window_id;
 
 extern bool SHOULD_USE_MULTIPLE_MONITORS;
+extern bool FAIL_SAFE_AUTO_SAVE_SESSION;
 extern bool MULTILINE_MENUS;
 extern bool SORT_BOOKMARKS_BY_LOCATION;
 extern bool SORT_HIGHLIGHTS_BY_LOCATION;
@@ -216,7 +218,9 @@ extern bool ALLOW_MAIN_VIEW_SCROLL_WHILE_IN_OVERVIEW;
 extern bool SAME_WIDTH;
 extern bool KEYBOARD_SELECT_INCLUSIVE;
 extern bool SHOW_COMMAND_HINTS;
+extern bool RESTORE_ALL_WINDOWS_ON_STARTUP;
 
+extern bool FREE_TOUCHPAD_MOVEMENT;
 extern bool SIMPLIFY_FREEHAND_DRAWINGS;
 extern bool SHOW_RIGHT_CLICK_CONTEXT_MENU;
 extern std::wstring CONTEXT_MENU_ITEMS;
@@ -309,7 +313,8 @@ void set_filtered_select_menu(MainWidget* main_widget, bool fuzzy, bool multilin
     int selected_index,
     std::function<void(T*)> on_select,
     std::function<void(T*)> on_delete,
-    std::function<void(T*)> on_edit = nullptr
+    std::function<void(T*)> on_edit = nullptr,
+    bool last_column_fixed = false
 ) {
     if (columns.size() > 1) {
 
@@ -352,7 +357,7 @@ void set_filtered_select_menu(MainWidget* main_widget, bool fuzzy, bool multilin
                     if (val && on_delete) {
                         on_delete(val);
                     }
-                });
+                }, last_column_fixed);
             w->set_filter_column_index(-1);
             if (on_edit) {
                 w->set_on_edit_function(on_edit);
@@ -815,56 +820,76 @@ void MainWidget::mouseMoveEvent(QMouseEvent* mouse_event) {
     }
 }
 
+void MainWidget::update_text_selection_with_begin_and_end(AbsoluteDocumentPos begin, AbsoluteDocumentPos end) {
+    selection_begin = begin;
+    selection_end = end;
+
+    if (selection_mode == SelectionMode::Line) {
+        main_document_view->get_line_selection(selection_begin,
+            selection_end,
+            main_document_view->selected_character_rects,
+            selected_text);
+    }
+    else {
+        main_document_view->get_text_selection(selection_begin,
+            selection_end,
+            selection_mode == SelectionMode::Word ,
+            main_document_view->selected_character_rects,
+            selected_text);
+    }
+    selected_text_is_dirty = false;
+
+    validate_render();
+    last_text_select_time = QTime::currentTime();
+}
+
 void MainWidget::update_text_selection(AbsoluteDocumentPos abs_mpos) {
     // When selecting, we occasionally update selected text
     //todo: maybe have a timer event that handles this periodically
     int msecs_since_last_text_select = last_text_select_time.msecsTo(QTime::currentTime());
     if (msecs_since_last_text_select > 16 || msecs_since_last_text_select < 0) {
-
-        selection_begin = last_mouse_down;
-        selection_end = abs_mpos;
-        //fz_point selection_begin = { last_mouse_down.x(), last_mouse_down.y()};
-        //fz_point selection_end = { document_x, document_y };
-
-        if (selection_mode == SelectionMode::Line) {
-            main_document_view->get_line_selection(selection_begin,
-                selection_end,
-                main_document_view->selected_character_rects,
-                selected_text);
-        }
-        else {
-            main_document_view->get_text_selection(selection_begin,
-                selection_end,
-                selection_mode == SelectionMode::Word ,
-                main_document_view->selected_character_rects,
-                selected_text);
-        }
-        selected_text_is_dirty = false;
-
-        validate_render();
-        last_text_select_time = QTime::currentTime();
+        update_text_selection_with_begin_and_end(selection_begin, abs_mpos);
     }
 }
 
 void MainWidget::persist(bool persist_drawings) {
     main_document_view->persist(persist_drawings);
 
-    // write the address of the current document in a file so that the next time
-    // we launch the application, we open this document
-    if (main_document_view->get_document()) {
+    if (RESTORE_ALL_WINDOWS_ON_STARTUP) {
         std::ofstream last_path_file(last_opened_file_address_path.get_path_utf8());
-
-        //std::string encoded_file_name_str = utf8_encode(main_document_view->get_document()->get_path());
-        std::string encoded_file_name_str = utf8_encode(get_current_tabs_file_names());
-        last_path_file << encoded_file_name_str.c_str() << std::endl;
+        for (auto window : windows) {
+            if (window->main_document_view->get_document()) {
+                window->main_document_view->persist(persist_drawings);
+                QByteArray geom = window->saveGeometry();
+                std::string geom_hex = geom.toHex().constData();
+                last_path_file << "[window] " << geom_hex << "\n";
+                std::string tabs_str = utf8_encode(window->get_current_tabs_file_names());
+                last_path_file << tabs_str;
+                if (!tabs_str.empty() && tabs_str.back() != '\n') {
+                    last_path_file << "\n";
+                }
+            }
+        }
         last_path_file.close();
+    }
+    else {
+        // write the address of the current document in a file so that the next time
+        // we launch the application, we open this document
+        if (main_document_view->get_document()) {
+            std::ofstream last_path_file(last_opened_file_address_path.get_path_utf8());
+
+            //std::string encoded_file_name_str = utf8_encode(main_document_view->get_document()->get_path());
+            std::string encoded_file_name_str = utf8_encode(get_current_tabs_file_names());
+            last_path_file << encoded_file_name_str.c_str() << std::endl;
+            last_path_file.close();
+        }
     }
 }
 void MainWidget::closeEvent(QCloseEvent* close_event) {
     handle_close_event();
 }
 
-MainWidget::MainWidget(MainWidget* other) : MainWidget(other->mupdf_context, other->db_manager, other->document_manager, other->config_manager, other->command_manager, other->input_handler, other->checksummer, other->should_quit) {
+MainWidget::MainWidget(MainWidget* other) : MainWidget(other->mupdf_context, other->db_manager, other->document_manager, other->config_manager, other->command_manager, other->input_handler, other->checksummer, other->should_quit, other->pdf_renderer) {
 
 }
 
@@ -876,6 +901,7 @@ MainWidget::MainWidget(fz_context* mupdf_context,
     InputHandler* input_handler,
     CachedChecksummer* checksummer,
     bool* should_quit_ptr,
+    PdfRenderer* pdf_renderer,
     QWidget* parent) :
 #ifdef SIOYEK_ANDROID
     QQuickWidget(parent),
@@ -907,9 +933,7 @@ MainWidget::MainWidget(fz_context* mupdf_context,
     central_widget->setMouseTracking(true);
 
     inverse_search_command = INVERSE_SEARCH_COMMAND;
-    pdf_renderer = new PdfRenderer(4, should_quit_ptr, mupdf_context);
-    pdf_renderer->set_num_cached_pages(NUM_CACHED_PAGES);
-    pdf_renderer->start_threads();
+    this->pdf_renderer = pdf_renderer;
 
 
     //scratchpad = new ScratchPad();
@@ -1191,7 +1215,7 @@ MainWidget::MainWidget(fz_context* mupdf_context,
 
         });
 
-    connect(validation_interval_timer, &QTimer::timeout, [&]() {
+    connect(validation_interval_timer, &QTimer::timeout, this, [this]() {
 
         if (PERSISTANCE_PERIOD > 0) {
             QDateTime now = QDateTime::currentDateTime();
@@ -1257,9 +1281,14 @@ MainWidget::MainWidget(fz_context* mupdf_context,
 
                     if (is_doc_valid(this->mupdf_context, utf8_encode(doc->get_path()))) {
                         doc->reload();
-                        pdf_renderer->clear_cache();
-                        main_document_view->fill_cached_virtual_rects(true);
-                        invalidate_render();
+                        // update all the main_widgets that are using this document
+                        for (auto window : windows) {
+                            if (window->doc() == doc) {
+                                window->pdf_renderer->clear_cache();
+                                window->main_document_view->fill_cached_virtual_rects(true);
+                                window->invalidate_render();
+                            }
+                        }
                     }
                 }
             }
@@ -1355,11 +1384,6 @@ MainWidget::~MainWidget() {
     }
     validation_interval_timer->stop();
     remove_self_from_windows();
-
-    if (windows.size() == 0) {
-        *should_quit = true;
-        pdf_renderer->join_threads();
-    }
 
     if (tts) {
         delete tts;
@@ -1813,7 +1837,7 @@ void MainWidget::validate_render() {
                     main_document_view->get_document()->get_accum_page_height(current_page) +
                     main_document_view->get_document()->get_page_height(current_page) / 2 + statusbar_factor);
             }
-            if (IGNORE_WHITESPACE_IN_PRESENTATION_MODE) {
+            if (IGNORE_WHITESPACE_IN_PRESENTATION_MODE && !main_document_view->is_two_page_mode()) {
                 main_document_view->fit_to_page_height(true);
             }
             else {
@@ -2129,6 +2153,11 @@ void MainWidget::open_document(const std::wstring& path, std::optional<float> of
         update_scrollbar();
     }
 
+    // save current session
+    if (FAIL_SAFE_AUTO_SAVE_SESSION) {
+        persist(true);
+    }
+
     deselect_document_indices();
     invalidate_render();
 
@@ -2358,8 +2387,7 @@ void MainWidget::update_command_hints_position() {
 
     const int outer_margin = 12;
     int available_width = std::max(main_window_width - (outer_margin * 2), 120);
-    int preferred_width = std::max(main_window_width / 3, 220);
-    command_hints_label->setMaximumWidth(std::min(available_width, preferred_width));
+    command_hints_label->setMaximumWidth(std::min(available_width, available_width));
     command_hints_label->adjustSize();
 
     int bottom_offset = outer_margin;
@@ -3356,11 +3384,13 @@ void MainWidget::wheelEvent(QWheelEvent* wevent) {
     int num_repeats = abs(wevent->angleDelta().y() / 120);
     float num_repeats_f_y = abs(wevent->angleDelta().y() / 120.0);
     float num_repeats_f_x = abs(wevent->angleDelta().x() / 120.0);
-    if (std::abs(num_repeats_f_x) > std::abs(num_repeats_f_y)){
-        num_repeats_f_y = 0;
-    }
-    else{
-        num_repeats_f_x = 0;
+    if (!FREE_TOUCHPAD_MOVEMENT){
+        if (std::abs(num_repeats_f_x) > std::abs(num_repeats_f_y)){
+            num_repeats_f_y = 0;
+        }
+        else{
+            num_repeats_f_x = 0;
+        }
     }
 #else
     int num_repeats = abs(wevent->delta() / 120);
@@ -5170,6 +5200,10 @@ void MainWidget::focus_rect(DocumentRect rect) {
 }
 
 void MainWidget::focus_text(int page, const std::wstring& text) {
+    if (page < 0 || page >= doc()->num_pages()) {
+        return;
+    }
+
     std::vector<std::wstring> line_texts;
     std::vector<AbsoluteRect> line_rects;
     line_rects = main_document_view->get_document()->get_page_lines(page, &line_texts);
@@ -6086,7 +6120,7 @@ void MainWidget::handle_goto_bookmark_global() {
             BookMark bm = desc_bm_pair.second;
             std::wstring file_name = Path(path.value()).filename().value_or(L"");
             descs.push_back(ITEM_LIST_PREFIX + L" " + bm.description);
-            file_names.push_back(truncate_string(file_name, 50));
+            file_names.push_back(file_name);
             book_states.push_back({ path.value(), bm.get_y_offset(), bm.uuid});
         }
     }
@@ -6100,8 +6134,9 @@ void MainWidget::handle_goto_bookmark_global() {
         },
         [&](BookState* book_state) {
             db_manager->delete_bookmark(book_state->uuid);
-        }
-        );
+        },
+        nullptr,
+        true);
     show_current_widget();
 }
 
@@ -6215,7 +6250,7 @@ void MainWidget::handle_goto_highlight_global() {
                 has_annots = true;
             }
 
-            file_names.push_back(truncate_string(file_name, 50));
+            file_names.push_back(file_name);
 
             book_states.push_back({ path.value(), hl.selection_begin.y, hl.uuid });
 
@@ -6244,7 +6279,9 @@ void MainWidget::handle_goto_highlight_global() {
             }
         }, [&](BookState* state) {
             db_manager->delete_highlight(state->uuid);
-        });
+        },
+        nullptr,
+        true);
 
     show_current_widget();
 }
@@ -6425,6 +6462,43 @@ void MainWidget::handle_move_screen(int amount) {
     }
 }
 
+MainWidget* MainWidget::create_restored_window(MainWidget* sibling, const WindowState& state) {
+    MainWidget* new_w = new MainWidget(sibling);
+    new_w->execute_macro_if_enabled(STARTUP_COMMANDS);
+    new_w->open_tabs(state.tabs);
+    new_w->open_document(state.tabs[0]);
+    if (!state.geometry_hex.empty()) {
+        new_w->restoreGeometry(QByteArray::fromHex(QByteArray::fromStdString(state.geometry_hex)));
+    } else {
+        new_w->apply_window_params_for_one_window_mode();
+    }
+
+    auto color_mode = sibling->opengl_widget->get_current_color_mode();
+    if (color_mode == PdfViewOpenGLWidget::ColorPalette::Dark) {
+        new_w->opengl_widget->set_dark_mode(true);
+    }
+    else if (color_mode == PdfViewOpenGLWidget::ColorPalette::Custom) {
+        new_w->opengl_widget->set_custom_color_mode(true);
+    }
+
+    new_w->show();
+    windows.push_back(new_w);
+    return new_w;
+}
+
+void MainWidget::handle_delete_selected_annotation() {
+    if (selected_highlight_index != -1) {
+        doc()->delete_highlight_with_index(selected_highlight_index);
+        set_selected_highlight_index(-1);
+        return;
+    }
+    if (selected_bookmark_index != -1){
+        doc()->delete_bookmark_with_index(selected_bookmark_index);
+        set_selected_bookmark_index(-1);
+        return;
+    }
+}
+
 MainWidget* MainWidget::handle_new_window() {
     MainWidget* new_widget = new MainWidget(mupdf_context,
         db_manager,
@@ -6433,8 +6507,9 @@ MainWidget* MainWidget::handle_new_window() {
         command_manager,
         input_handler,
         checksummer,
-        should_quit);
-    new_widget->open_document(main_document_view->get_state());
+        should_quit,
+        pdf_renderer);
+    new_widget->open_document(main_document_view->get_state().document_path, std::nullopt, main_document_view->get_offset_y());
     new_widget->show();
     new_widget->apply_window_params_for_one_window_mode();
     new_widget->execute_macro_if_enabled(STARTUP_COMMANDS);
@@ -6623,7 +6698,15 @@ void MainWidget::handle_goto_window() {
                 windows[*window_id]->activateWindow();
             }
         },
-        this));
+        this,
+    [&](int* on_delete){
+        // close the selected window, if it is the current window, we should also focus the next window in the list
+        if (*on_delete < windows.size()) {
+            MainWidget* window_to_close = windows[*on_delete];
+            windows.erase(windows.begin() + *on_delete);
+            window_to_close->close();
+        }
+    }));
     show_current_widget();
 }
 
@@ -7528,6 +7611,7 @@ void MainWidget::select_next_char(){
         float mid_x = (main_document_view->selected_character_rects.back().x0 + main_document_view->selected_character_rects.back().x1) / 2;
         float mid_y = (main_document_view->selected_character_rects.back().y0 + main_document_view->selected_character_rects.back().y1) / 2;
         mid_x += doc()->get_page_width(get_current_page_number()) / 2;
+        mid_y -= doc()->get_accum_page_height(get_current_page_number());
 
         fz_point point = {mid_x, mid_y};
         fz_stext_char* next_char = doc()->get_next_char_after_selection(get_current_page_number(), point);
@@ -7549,7 +7633,7 @@ void MainWidget::unselect_last_char(){
 }
 
 void MainWidget::handle_debug_command() {
-    select_word_under_cursor();
+
 }
 
 void MainWidget::export_command_names(std::wstring file_path){
@@ -11044,33 +11128,49 @@ void MainWidget::set_selected_bookmark_index(int index) {
 }
 
 void MainWidget::handle_highlight_tags_pre_perform(const std::vector<int>& visible_highlight_indices) {
-    const std::vector<Highlight>& highlights = doc()->get_highlights();
-
-    std::vector<DocumentRect> highlight_rects;
+    std::vector<SioyekVisibleObjectIndex> visible_object_indices;
     for (auto ind : visible_highlight_indices) {
-        const Highlight& highlight = highlights[ind];
-        if (highlight.highlight_rects.size() > 0) {
-            highlight_rects.push_back(highlight.highlight_rects[0].to_document(doc()));
-        }
+        visible_object_indices.push_back(SioyekVisibleObjectIndex{ SioyekVisibleObjectType::Highlight, ind });
     }
-
-    opengl_widget->set_highlight_words(highlight_rects);
-    opengl_widget->set_should_highlight_words(true);
+    return handle_visible_objects_tags_pre_perform(visible_object_indices);
 
 }
 
 void MainWidget::handle_visible_bookmark_tags_pre_perform(const std::vector<int>& visible_bookmark_indices){
+    std::vector<SioyekVisibleObjectIndex> visible_object_indices;
+    for (auto ind : visible_bookmark_indices) {
+        visible_object_indices.push_back(SioyekVisibleObjectIndex{ SioyekVisibleObjectType::Bookmark, ind });
+    }
+    return handle_visible_objects_tags_pre_perform(visible_object_indices);
+}
+
+void MainWidget::handle_visible_objects_tags_pre_perform(const std::vector<SioyekVisibleObjectIndex>& visible_object_indices) {
     const std::vector<BookMark>& bookmarks = doc()->get_bookmarks();
 
-    std::vector<DocumentRect> bookmark_rects;
-    for (auto ind : visible_bookmark_indices) {
-        const BookMark& bookmark = bookmarks[ind];
-        AbsoluteRect bookmark_rect = bookmark.get_rectangle();
-        bookmark_rects.push_back(bookmark_rect.to_document(doc()));
+    std::vector<DocumentRect> annotation_rects;
+    for (auto obj_index : visible_object_indices) {
+        if (obj_index.type == SioyekVisibleObjectType::Bookmark) {
+            const BookMark& bookmark = bookmarks[obj_index.index];
+            AbsoluteRect bookmark_rect = bookmark.get_rectangle();
+            annotation_rects.push_back(bookmark_rect.to_document(doc()));
+        }
+        else if (obj_index.type == SioyekVisibleObjectType::Highlight) {
+            const Highlight& highlight = doc()->get_highlights()[obj_index.index];
+            if (highlight.highlight_rects.size() > 0) {
+                annotation_rects.push_back(highlight.highlight_rects[0].to_document(doc()));
+            }
+            else{
+                DocumentRect empty_rect;
+                empty_rect.page = 0;
+                empty_rect.rect = { 0, 0, 0, 0 };
+                annotation_rects.push_back(empty_rect);
+            }
+        }
     }
 
-    opengl_widget->set_highlight_words(bookmark_rects);
+    opengl_widget->set_highlight_words(annotation_rects);
     opengl_widget->set_should_highlight_words(true);
+
 }
 
 void MainWidget::clear_keyboard_select_highlights() {
@@ -11634,8 +11734,8 @@ QMenuBar* MainWidget::create_main_menu_bar(){
             new MenuNode{ "add_bookmark", "", {} },
             new MenuNode{ "add_marked_bookmark", "", {} },
             new MenuNode{ "add_freetext_bookmark", "", {} },
-            new MenuNode{ "delete_visible_bookmark", "", {} },
-            new MenuNode{ "edit_visible_bookmark", "Edit the selected bookmark", {} },
+            new MenuNode{ "delete_visible_annotation", "", {} },
+            new MenuNode{ "edit_visible_annotation", "Edit the selected annotation", {} },
         }
     };
 
@@ -11656,7 +11756,6 @@ QMenuBar* MainWidget::create_main_menu_bar(){
             new MenuNode{ "add_highlight", "", {} },
             new MenuNode{ "add_annot_to_selected_highlight", "", {} },
             new MenuNode{ "add_highlight_with_current_type", "", {} },
-            new MenuNode{ "edit_visible_highlight", "Edit the selected highlight", {} },
             new MenuNode{ "delete_highlight", "", {} },
         }
     };

@@ -863,6 +863,19 @@ public:
         }
     }
 
+    virtual void on_cancel() override{
+        int current_index = get_current_executing_command_index();
+        if (current_index != -1) {
+            commands[current_index]->on_cancel();
+        }
+
+        for (auto& command : commands) {
+            if (command->is_done) {
+                *command->is_done = true;
+            }
+        }
+    }
+
     std::string get_pending_name() {
         
         if (name.size() > 0 || commands.size() == 0) {
@@ -1495,6 +1508,7 @@ public:
         if (INCREMENTAL_SEARCH) {
             widget->goto_mark('/');
         }
+        TextCommand::on_cancel();
     }
 
     void perform() {
@@ -2150,6 +2164,7 @@ public:
         if (pending_index != -1) {
             widget->doc()->undo_pending_bookmark(pending_index);
         }
+        Command::on_cancel();
     }
 
     void perform() {
@@ -2374,10 +2389,11 @@ public:
         rect_ = value;
         BookMark incomplete_bookmark;
 
-        incomplete_bookmark.begin_x = value.x0;
-        incomplete_bookmark.begin_y = value.y0;
-        incomplete_bookmark.end_x = value.x1;
-        incomplete_bookmark.end_y = value.y1;
+        incomplete_bookmark.begin_x = std::min<float>(value.x0, value.x1);
+        incomplete_bookmark.end_x = std::max<float>(value.x0, value.x1);
+        incomplete_bookmark.begin_y = std::min<float>(value.y0, value.y1);
+        incomplete_bookmark.end_y = std::max<float>(value.y0, value.y1);
+
         incomplete_bookmark.color[0] = FREETEXT_BOOKMARK_COLOR[0];
         incomplete_bookmark.color[1] = FREETEXT_BOOKMARK_COLOR[1];
         incomplete_bookmark.color[2] = FREETEXT_BOOKMARK_COLOR[2];
@@ -2395,6 +2411,7 @@ public:
         if (pending_index != -1) {
             widget->doc()->undo_pending_bookmark(pending_index);
         }
+        Command::on_cancel();
     }
 
     void perform() {
@@ -3661,6 +3678,7 @@ public:
             widget->doc()->get_bookmarks()[index].description = initial_text;
             widget->doc()->get_bookmarks()[index].font_size = initial_font_size;
         }
+        TextCommand::on_cancel();
     }
 
     std::optional<Requirement> next_requirement(MainWidget* widget) {
@@ -3840,59 +3858,126 @@ public:
 
 };
 
-class GenericVisibleBookmarkCommand : public GenericVisibleSelectCommand {
+class GenericVisibleAnnotationCommand : public GenericVisibleSelectCommand {
+
+    std::vector<SioyekVisibleObjectIndex> visible_objects;
 
 public:
-    GenericVisibleBookmarkCommand(std::string name, MainWidget* w) : GenericVisibleSelectCommand(name, w) {};
+    GenericVisibleAnnotationCommand(std::string name, MainWidget* w) : GenericVisibleSelectCommand(name, w) {};
 
     int get_selected_item_index() override{
-        return widget->selected_bookmark_index;
+        if (widget->selected_bookmark_index != -1) {
+            return widget->selected_bookmark_index;
+        }
+        return widget->selected_highlight_index;
     }
 
     std::vector<int> get_visible_item_indices() override {
-        return widget->main_document_view->get_visible_bookmark_indices();
+        visible_objects.clear();
+
+        std::vector<int> visible_object_indices;
+        std::vector<int> visible_bookmark_indices = widget->main_document_view->get_visible_bookmark_indices();
+        std::vector<int> visible_highlight_indices = widget->main_document_view->get_visible_highlight_indices();
+
+        for (const auto& index : visible_bookmark_indices) {
+            visible_objects.push_back({ SioyekVisibleObjectType::Bookmark, index });
+            visible_object_indices.push_back(visible_object_indices.size());
+        }
+        for (const auto& index : visible_highlight_indices) {
+            visible_objects.push_back({ SioyekVisibleObjectType::Highlight, index });
+            visible_object_indices.push_back(visible_object_indices.size());
+        }
+
+        return visible_object_indices;
     }
 
 
     void handle_indices_pre_perform() override {
-        widget->handle_visible_bookmark_tags_pre_perform(visible_item_indices);
+        widget->handle_visible_objects_tags_pre_perform(visible_objects);
     }
 
-    virtual void perform_with_bookmark_selected() = 0;
+    virtual void perform_with_visible_object_selected() = 0;
 
     void perform_with_selected_index(std::optional<int> index) override {
         if (index) {
-            if (index < visible_item_indices.size()) {
-                widget->set_selected_bookmark_index(visible_item_indices[index.value()]);
+            if (index < visible_objects.size()) {
+                if (visible_objects[index.value()].type == SioyekVisibleObjectType::Highlight) {
+                    widget->set_selected_highlight_index(visible_objects[index.value()].index);
+                    widget->set_selected_bookmark_index(-1);
+                }
+                else if (visible_objects[index.value()].type == SioyekVisibleObjectType::Bookmark) {
+                    widget->set_selected_bookmark_index(visible_objects[index.value()].index);
+                    widget->set_selected_highlight_index(-1);
+                }
             }
         }
 
-        perform_with_bookmark_selected();
+        perform_with_visible_object_selected();
     }
 
 };
 
-class DeleteVisibleBookmarkCommand : public GenericVisibleBookmarkCommand {
+class DeleteVisibleAnnotationCommand : public GenericVisibleAnnotationCommand {
 
 public:
-    static inline const std::string cname = "delete_visible_bookmark";
-    static inline const std::string hname = "Delete the selected bookmark";
-    DeleteVisibleBookmarkCommand(MainWidget* w) : GenericVisibleBookmarkCommand(cname, w) {};
+    static inline const std::string cname = "delete_visible_annotation";
+    static inline const std::string hname = "Delete the selected annotation";
+    DeleteVisibleAnnotationCommand(MainWidget* w) : GenericVisibleAnnotationCommand(cname, w) {};
 
-    void perform_with_bookmark_selected() override {
-        widget->handle_delete_selected_bookmark();
+    void perform_with_visible_object_selected() override {
+        if (widget->selected_bookmark_index != -1) {
+            widget->handle_delete_selected_bookmark();
+        }
+        else if (widget->selected_highlight_index != -1) {
+            widget->handle_delete_selected_highlight();
+        }
     }
 };
 
-class EditVisibleBookmarkCommand : public GenericVisibleBookmarkCommand {
+class DeleteSelectedAnnotationCommand : public Command {
 
 public:
-    static inline const std::string cname = "edit_visible_bookmark";
+    static inline const std::string cname = "delete_selected_annotation";
+    static inline const std::string hname = "Delete the selected annotation";
+    DeleteSelectedAnnotationCommand(MainWidget* w) : Command(cname, w) {};
+
+    void perform() override {
+        widget->handle_delete_selected_annotation();
+        widget->invalidate_render();
+    }
+};
+
+class EditSelectedAnnotationCommand : public Command {
+
+public:
+    static inline const std::string cname = "edit_selected_annotation";
+    static inline const std::string hname = "Edit the selected annotation";
+    EditSelectedAnnotationCommand(MainWidget* w) : Command(cname, w) {};
+
+    void perform() override {
+        if (widget->selected_highlight_index != -1) {
+            widget->run_command_with_name("edit_selected_highlight");
+        }
+        else if (widget->selected_bookmark_index != -1) {
+            widget->run_command_with_name("edit_selected_bookmark");
+        }
+    }
+};
+
+class EditVisibleAnnotationCommand : public GenericVisibleAnnotationCommand {
+
+public:
+    static inline const std::string cname = "edit_visible_annotation";
     static inline const std::string hname = "";
-    EditVisibleBookmarkCommand(MainWidget* w) : GenericVisibleBookmarkCommand(cname, w) {};
+    EditVisibleAnnotationCommand(MainWidget* w) : GenericVisibleAnnotationCommand(cname, w) {};
 
-    void perform_with_bookmark_selected() override {
-        widget->execute_macro_if_enabled(L"edit_selected_bookmark");
+    void perform_with_visible_object_selected() override {
+        if (widget->selected_bookmark_index != -1){
+            widget->execute_macro_if_enabled(L"edit_selected_bookmark");
+        }
+        else if (widget->selected_highlight_index != -1){
+            widget->execute_macro_if_enabled(L"edit_selected_highlight");
+        }
     }
 };
 
@@ -3916,7 +4001,7 @@ public:
     static inline const std::string hname = "";
     ChangeHighlightTypeCommand(MainWidget* w) : GenericHighlightCommand(cname, w) {};
 
-    void perform_with_highlight_selected() {
+    void perform_with_highlight_selected() override {
         widget->execute_macro_if_enabled(L"add_highlight");
     }
 
@@ -3929,7 +4014,7 @@ public:
     static inline const std::string hname = "";
     AddAnnotationToHighlightCommand(MainWidget* w) : GenericHighlightCommand(cname, w) {};
 
-    void perform_with_highlight_selected() {
+    void perform_with_highlight_selected() override {
         widget->execute_macro_if_enabled(L"add_annot_to_selected_highlight");
     }
 
@@ -4225,6 +4310,7 @@ public:
 
     void on_cancel() override {
         widget->set_should_highlight_words(false);
+        Command::on_cancel();
     }
 
     void pre_perform() override {
@@ -4868,6 +4954,7 @@ KeyboardSelectPointCommand::KeyboardSelectPointCommand(MainWidget* w, std::uniqu
 void KeyboardSelectPointCommand::on_cancel() {
     origin->on_cancel();
     widget->set_highlighted_tags({});
+    Command::on_cancel();
 
 }
 
@@ -5043,6 +5130,7 @@ public:
 
     void on_cancel() override {
         widget->set_highlighted_tags({});
+        Command::on_cancel();
 
     }
 
@@ -5748,6 +5836,7 @@ public:
     GotoSelectedTextCommand(MainWidget* w) : Command(cname, w) {};
 
     void perform() {
+        widget->update_text_selection_with_begin_and_end(widget->selection_begin, widget->selection_end);
         widget->long_jump_to_destination(widget->selection_begin.y);
     }
 
@@ -6325,6 +6414,76 @@ public:
         //std::wstring embedded_pdf_file_name = select_new_pdf_file_name();
         if (file_path->size() > 0) {
             widget->main_document_view->get_document()->embed_annotations(file_path.value());
+        }
+    }
+};
+
+class EmbedGeneratedTocCommand : public Command {
+public:
+    static inline const std::string cname = "embed_generated_toc";
+    static inline const std::string hname = "Embed generated table of contents into a new PDF file";
+    EmbedGeneratedTocCommand(MainWidget* w) : Command(cname, w) {};
+
+    std::optional<std::wstring> file_path = {};
+
+    virtual void set_file_requirement(std::wstring value) {
+        file_path = value;
+    }
+
+    std::optional<QString> get_file_path_requirement_root_dir() {
+        QFileInfo file_info(QString::fromStdWString(widget->doc()->get_path()));
+        QString full_path = file_info.absolutePath();
+        QString file_path = file_info.fileName();
+        QString parent_path = full_path.mid(full_path.size() - file_path.size());
+        return parent_path;
+    }
+
+    std::optional<Requirement> next_requirement(MainWidget* widget) {
+        if (!file_path.has_value()) {
+            Requirement req = { RequirementType::File, "File Path" };
+            return req;
+        }
+        return {};
+    }
+
+    void perform() {
+        if (file_path->size() > 0) {
+            widget->main_document_view->get_document()->embed_generated_toc(file_path.value());
+        }
+    }
+};
+
+class ExportGeneratedTocCommand : public Command {
+public:
+    static inline const std::string cname = "export_generated_toc";
+    static inline const std::string hname = "Export the generated table of contents into a text file.";
+    ExportGeneratedTocCommand(MainWidget* w) : Command(cname, w) {};
+
+    std::optional<std::wstring> file_path = {};
+
+    virtual void set_file_requirement(std::wstring value) {
+        file_path = value;
+    }
+
+    std::optional<QString> get_file_path_requirement_root_dir() {
+        QFileInfo file_info(QString::fromStdWString(widget->doc()->get_path()));
+        QString full_path = file_info.absolutePath();
+        QString file_path = file_info.fileName();
+        QString parent_path = full_path.mid(full_path.size() - file_path.size());
+        return parent_path;
+    }
+
+    std::optional<Requirement> next_requirement(MainWidget* widget) {
+        if (!file_path.has_value()) {
+            Requirement req = { RequirementType::File, "File Path" };
+            return req;
+        }
+        return {};
+    }
+
+    void perform() {
+        if (file_path->size() > 0) {
+            widget->main_document_view->get_document()->export_generated_toc(file_path.value());
         }
     }
 };
@@ -7164,8 +7323,10 @@ CommandManager::CommandManager(ConfigManager* config_manager) {
     register_command<DeletePortalCommand>();
     register_command<DeleteBookmarkCommand>();
     register_command<DeleteHighlightCommand>();
-    register_command<DeleteVisibleBookmarkCommand>();
-    register_command<EditVisibleBookmarkCommand>();
+    register_command<DeleteVisibleAnnotationCommand>();
+    register_command<DeleteSelectedAnnotationCommand>();
+    register_command<EditSelectedAnnotationCommand>();
+    register_command<EditVisibleAnnotationCommand>();
     register_command<GotoPortalCommand>();
     register_command<GotoPortalCommand>();
     register_command<EditPortalCommand>();
@@ -7306,6 +7467,8 @@ CommandManager::CommandManager(ConfigManager* config_manager) {
     register_command<ToggleHorizontalLockCommand>();
     register_command<ExecuteCommand>();
     register_command<EmbedAnnotationsCommand>();
+    register_command<EmbedGeneratedTocCommand>();
+    register_command<ExportGeneratedTocCommand>();
     register_command<ImportAnnotationsCommand>();
     register_command<CopyWindowSizeConfigCommand>();
     register_command<ToggleSelectHighlightCommand>();
@@ -8040,9 +8203,16 @@ void InputHandler::get_commands_with_current_prefix_helper(InputParseTreeNode* n
     for (size_t i = 0; i < node->children.size(); i++) {
         prefix.push_back(node->children[i]);
         if (node->children[i]->is_final){
+            std::string full_name;
+            int index = 0;
             for (const auto& name : node->children[i]->name_){
-                map[name].push_back(get_key_string_from_tree_node_sequence(prefix));
+                full_name += name;
+                if (index < node->children[i]->name_.size() - 1){
+                    full_name += ";";
+                }
+                index++;
             }
+            map[full_name].push_back(get_key_string_from_tree_node_sequence(prefix));
         }
         else {
             get_commands_with_current_prefix_helper(node->children[i], prefix, map);
@@ -8204,7 +8374,9 @@ void Command::pre_perform() {
 }
 
 void Command::on_cancel() {
-
+    if (is_done){
+        *is_done = true;
+    }
 }
 
 void Command::run() {

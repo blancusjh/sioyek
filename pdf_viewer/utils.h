@@ -67,7 +67,7 @@ std::string utf8_encode(const std::wstring& decoded_str);
 bool is_rtl(int c);
 std::wstring reverse_wstring(const std::wstring& inp);
 bool parse_search_command(const std::wstring& search_command, int* out_begin, int* out_end, std::wstring* search_text);
-QStandardItemModel* get_model_from_toc(const std::vector<TocNode*>& roots);
+QStandardItemModel* get_model_from_toc(const std::vector<TocNode*>& roots, const std::vector<std::wstring>& page_labels);
 
 // given a tree of toc nodes and an array of indices, returns the node whose ith parent is indexed by the ith element
 // of the indices array. That is:
@@ -528,4 +528,9 @@ QString translate_key_mapping_to_macos(QString mapping);
 bool is_platform_meta_pressed(QKeyEvent* kevent);
 bool is_platform_control_pressed(QKeyEvent* kevent);
 std::vector<std::wstring> get_last_opened_file_name();
+struct WindowState {
+    std::string geometry_hex;
+    std::vector<std::wstring> tabs;
+};
+std::vector<WindowState> get_last_saved_windows_states();
 bool stext_page_has_lines(fz_stext_page* page);
