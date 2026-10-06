@@ -130,6 +130,9 @@ This fork preserves the local Mac source, including grayscale PDF rendering
 highlights (`use_multiply_highlight_blend`). The `personal-build` branch is the
 saved version for use on other machines.
 
+The TOC opens with other sections collapsed and the current section expanded
+(`collapsed_toc 1`).
+
 Use [BUILDING-LINUX.md](BUILDING-LINUX.md) for Linux and
 [BUILDING-MAC.md](BUILDING-MAC.md) for the local Mac setup. This development
 source needs **Qt 6.7 or 6.8**; the older Qt 5 Linux instructions below are
