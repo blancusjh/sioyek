@@ -133,6 +133,11 @@ saved version for use on other machines.
 The TOC opens with other sections collapsed and the current section expanded
 (`collapsed_toc 1`).
 
+Keyboard scrolling animates normal movement and screen-scroll commands while
+preserving their distances. It is enabled by default (`smooth_keyboard_scroll 1`)
+with a 140 ms duration (`smooth_keyboard_scroll_duration 140`). Set the duration
+to `0`, or disable `smooth_keyboard_scroll`, for instant movement.
+
 Use [BUILDING-LINUX.md](BUILDING-LINUX.md) for Linux and
 [BUILDING-MAC.md](BUILDING-MAC.md) for the local Mac setup. This development
 source needs **Qt 6.7 or 6.8**; the older Qt 5 Linux instructions below are

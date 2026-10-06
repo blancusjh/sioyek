@@ -73,6 +73,8 @@ single_main_window_size
 single_main_window_move
 fit_to_page_width_ratio
 collapsed_toc
+smooth_keyboard_scroll
+smooth_keyboard_scroll_duration
 render_pdf_annotations
 ruler_mode
 use_ruler_to_highlight_synctex_line

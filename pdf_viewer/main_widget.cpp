@@ -49,6 +49,7 @@
 #include <qstringlistmodel.h>
 #include <qtextedit.h>
 #include <qtimer.h>
+#include <QVariantAnimation>
 #include <qtreeview.h>
 #include <qwindow.h>
 #include <qstandardpaths.h>
@@ -179,6 +180,8 @@ extern float CUSTOM_TEXT_COLOR[3];
 extern float HYPERDRIVE_SPEED_FACTOR;
 extern float SMOOTH_SCROLL_SPEED;
 extern float SMOOTH_SCROLL_DRAG;
+extern bool SMOOTH_KEYBOARD_SCROLL;
+extern int SMOOTH_KEYBOARD_SCROLL_DURATION;
 extern bool SUPER_FAST_SEARCH;
 extern bool INCREMENTAL_SEARCH;
 extern bool SHOW_CLOSEST_BOOKMARK_IN_STATUSBAR;
@@ -1630,6 +1633,8 @@ std::wstring MainWidget::get_status_string(bool is_right) {
 
 void MainWidget::handle_escape() {
 
+    stop_keyboard_scroll();
+
     // add high escape priority to overview and search, if any of them are escaped, do not escape any further
     if (opengl_widget) {
         bool should_return = false;
@@ -1891,11 +1896,79 @@ void MainWidget::validate_ui() {
 }
 
 bool MainWidget::move_document(float dx, float dy, bool force) {
+    stop_keyboard_scroll();
     if (main_document_view_has_document()) {
         //return main_document_view->move(dx, dy, force);
         return dv()->move(dx, dy, force);
     }
     return false;
+}
+
+void MainWidget::stop_keyboard_scroll() {
+    if (keyboard_scroll_animation) {
+        keyboard_scroll_animation->stop();
+    }
+}
+
+void MainWidget::move_document_with_keyboard(float dx, float dy) {
+    if (!main_document_view_has_document()) {
+        return;
+    }
+    if (!SMOOTH_KEYBOARD_SCROLL || SMOOTH_KEYBOARD_SCROLL_DURATION <= 0 ||
+        is_moving() || smooth_scroll_speed != 0.0f) {
+        move_document(dx, dy);
+        return;
+    }
+
+    if (!keyboard_scroll_animation) {
+        keyboard_scroll_animation = new QVariantAnimation(this);
+        keyboard_scroll_animation->setEasingCurve(QEasingCurve::OutCubic);
+        connect(keyboard_scroll_animation, &QVariantAnimation::valueChanged, this, [this](const QVariant& value) {
+            if (keyboard_scroll_animation->state() != QAbstractAnimation::Running) {
+                return;
+            }
+            DocumentView* view = dv();
+            QPointF offset(view->get_offset_x(), view->get_offset_y());
+            // A jump, zoom, tab change or another input takes over immediately.
+            if (view != keyboard_scroll_view || view->get_document() != keyboard_scroll_document ||
+                view->get_zoom_level() != keyboard_scroll_zoom ||
+                std::abs(offset.x() - keyboard_scroll_expected_offset.x()) > 0.1 ||
+                std::abs(offset.y() - keyboard_scroll_expected_offset.y()) > 0.1 ||
+                main_document_view->is_presentation_mode() || opengl_widget->get_overview_page() ||
+                !current_widget_stack.empty() || is_moving()) {
+                stop_keyboard_scroll();
+                return;
+            }
+            QPointF delta = value.toPointF();
+            QPointF step = delta - keyboard_scroll_applied_delta;
+            view->move(step.x(), step.y());
+            keyboard_scroll_applied_delta = delta;
+            keyboard_scroll_expected_offset = QPointF(view->get_offset_x(), view->get_offset_y());
+            validate_render();
+        });
+    }
+
+    QPointF remaining;
+    if (keyboard_scroll_animation->state() == QAbstractAnimation::Running &&
+        dv() == keyboard_scroll_view && dv()->get_document() == keyboard_scroll_document &&
+        dv()->get_zoom_level() == keyboard_scroll_zoom &&
+        std::abs(dv()->get_offset_x() - keyboard_scroll_expected_offset.x()) <= 0.1 &&
+        std::abs(dv()->get_offset_y() - keyboard_scroll_expected_offset.y()) <= 0.1) {
+        remaining = keyboard_scroll_animation->endValue().toPointF() - keyboard_scroll_applied_delta;
+    }
+    stop_keyboard_scroll();
+    // Do not finish queued movement in the old direction when the user reverses.
+    if (dx * remaining.x() < 0) remaining.setX(0);
+    if (dy * remaining.y() < 0) remaining.setY(0);
+    keyboard_scroll_view = dv();
+    keyboard_scroll_document = keyboard_scroll_view->get_document();
+    keyboard_scroll_zoom = keyboard_scroll_view->get_zoom_level();
+    keyboard_scroll_expected_offset = QPointF(keyboard_scroll_view->get_offset_x(), keyboard_scroll_view->get_offset_y());
+    keyboard_scroll_applied_delta = QPointF();
+    keyboard_scroll_animation->setDuration(std::clamp(SMOOTH_KEYBOARD_SCROLL_DURATION, 1, 1000));
+    keyboard_scroll_animation->setStartValue(QPointF());
+    keyboard_scroll_animation->setEndValue(remaining + QPointF(dx, dy));
+    keyboard_scroll_animation->start();
 }
 
 void MainWidget::move_document_screens(int num_screens) {
@@ -3280,6 +3353,7 @@ void MainWidget::handle_triple_click(AbsoluteDocumentPos mouse_abspos) {
 }
 
 void MainWidget::mousePressEvent(QMouseEvent* mevent) {
+    stop_keyboard_scroll();
     bool is_shift_pressed = QGuiApplication::keyboardModifiers().testFlag(Qt::KeyboardModifier::ShiftModifier);
     bool is_control_pressed = QGuiApplication::keyboardModifiers().testFlag(Qt::KeyboardModifier::ControlModifier);
     bool is_command_pressed = QGuiApplication::keyboardModifiers().testFlag(Qt::KeyboardModifier::MetaModifier);
@@ -3348,6 +3422,7 @@ void MainWidget::mousePressEvent(QMouseEvent* mevent) {
 }
 
 void MainWidget::wheelEvent(QWheelEvent* wevent) {
+    stop_keyboard_scroll();
 
     if (IGNORE_SCROLL_EVENTS) return;
 
@@ -5948,7 +6023,7 @@ void MainWidget::handle_vertical_move(int amount) {
         main_document_view->move_pages(amount);
     }
     else {
-        move_document(0.0f, 72.0f * amount * VERTICAL_MOVE_AMOUNT);
+        move_document_with_keyboard(0.0f, 72.0f * amount * VERTICAL_MOVE_AMOUNT);
     }
 }
 
@@ -5961,7 +6036,7 @@ void MainWidget::handle_horizontal_move(int amount) {
         validate_render();
     }
     else {
-        dv()->move(72.0f * amount * HORIZONTAL_MOVE_AMOUNT, 0.0f);
+        move_document_with_keyboard(72.0f * amount * HORIZONTAL_MOVE_AMOUNT, 0.0f);
         last_smart_fit_page = {};
     }
 }
@@ -6455,7 +6530,7 @@ void MainWidget::handle_open_prev_doc() {
 
 void MainWidget::handle_move_screen(int amount) {
     if (!main_document_view->is_presentation_mode()) {
-        move_document_screens(amount);
+        move_document_with_keyboard(0.0f, amount * opengl_widget->height() * MOVE_SCREEN_PERCENTAGE);
     }
     else {
         main_document_view->move_pages(amount);
@@ -6813,6 +6888,10 @@ int MainWidget::num_visible_links() {
 }
 
 bool MainWidget::event(QEvent* event) {
+
+    if (event->type() == QEvent::WindowDeactivate) {
+        stop_keyboard_scroll();
+    }
 
     QTabletEvent* te = dynamic_cast<QTabletEvent*>(event);
     QKeyEvent* ke = dynamic_cast<QKeyEvent*>(event);

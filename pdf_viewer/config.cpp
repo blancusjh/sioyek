@@ -159,6 +159,8 @@ bool RERENDER_OVERVIEW = true;
 bool LINEAR_TEXTURE_FILTERING = false;
 bool RULER_MODE = true;
 bool SMALL_TOC = false;
+bool SMOOTH_KEYBOARD_SCROLL = true;
+int SMOOTH_KEYBOARD_SCROLL_DURATION = 140;
 bool WHEEL_ZOOM_ON_CURSOR = false;
 bool TEXT_SUMMARY_HIGHLIGHT_SHOULD_REFINE = true;
 bool TEXT_SUMMARY_HIGHLIGHT_SHOULD_FILL = true;
@@ -1000,6 +1002,7 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_bool(L"wheel_zoom_on_cursor", &WHEEL_ZOOM_ON_CURSOR);
     add_bool(L"linear_filter", &LINEAR_TEXTURE_FILTERING);
     add_bool(L"collapsed_toc", &SMALL_TOC);
+    add_bool(L"smooth_keyboard_scroll", &SMOOTH_KEYBOARD_SCROLL);
     add_bool(L"render_pdf_annotations", &SHOULD_RENDER_PDF_ANNOTATIONS);
     add_bool(L"ruler_mode", &RULER_MODE);
     add_bool(L"use_ruler_to_highlight_synctex_line", &USE_RULER_TO_HIGHLIGHT_SYNCTEX_LINE);
@@ -1125,6 +1128,7 @@ ConfigManager::ConfigManager(const Path& default_path, const Path& auto_path, co
     add_macro(L"alt_click_command", &ALT_CLICK_COMMAND);
     add_macro(L"alt_right_click_command", &ALT_RIGHT_CLICK_COMMAND);
     add_int(L"font_size", &FONT_SIZE, IntExtras{1, 100});
+    add_int(L"smooth_keyboard_scroll_duration", &SMOOTH_KEYBOARD_SCROLL_DURATION, IntExtras{0, 1000});
     add_int(L"ruler_pixel_width", &RULER_UNDERLINE_PIXEL_WIDTH, IntExtras{1, 100});
     add_int(L"num_prerendered_next_slides", &NUM_PRERENDERED_NEXT_SLIDES, IntExtras{0, 5});
     add_int(L"num_cached_pages", &NUM_CACHED_PAGES, IntExtras{0, 100});

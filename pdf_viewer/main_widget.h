@@ -27,6 +27,7 @@ class QLocalSocket;
 class QLineEdit;
 class QTextEdit;
 class QTimer;
+class QVariantAnimation;
 class QDragEvent;
 class QDropEvent;
 class QScrollBar;
@@ -287,6 +288,13 @@ public:
     // `smooth_scroll_speed` is used to keep track of our speed in this mode
     bool smooth_scroll_mode = false;
     float smooth_scroll_speed = 0.0f;
+
+    QVariantAnimation* keyboard_scroll_animation = nullptr;
+    QPointF keyboard_scroll_applied_delta;
+    QPointF keyboard_scroll_expected_offset;
+    DocumentView* keyboard_scroll_view = nullptr;
+    Document* keyboard_scroll_document = nullptr;
+    float keyboard_scroll_zoom = 1.0f;
 
     // the timer which periodically checks if the UI/rendering needs updating. Normally the timer value is
     // set to be INTERVAL_TIME (which is 200ms at the time of writing this comment), however, it is set to a much
@@ -559,6 +567,8 @@ public:
     void validate_ui();
     void zoom(WindowPos pos, float zoom_factor, bool zoom_in);
     bool move_document(float dx, float dy, bool force = false);
+    void move_document_with_keyboard(float dx, float dy);
+    void stop_keyboard_scroll();
     void move_document_screens(int num_screens);
     void focus_text(int page, const std::wstring& text);
     int get_page_intersecting_rect_index(DocumentRect rect);
