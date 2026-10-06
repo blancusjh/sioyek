@@ -69,6 +69,7 @@ cp pdf_viewer/prefs_user.config build/sioyek.app/Contents/Resources/prefs_user.c
 cp pdf_viewer/keys.config build/sioyek.app/Contents/Resources/keys.config
 cp pdf_viewer/keys_user.config build/sioyek.app/Contents/Resources/keys_user.config
 cp tutorial.pdf build/sioyek.app/Contents/Resources/tutorial.pdf
+git rev-parse HEAD > build/sioyek.app/Contents/Resources/BUILD-COMMIT
 
 # Capture the current PATH
 CURRENT_PATH=$(echo $PATH)

@@ -138,9 +138,13 @@ preserving their distances. It is enabled by default (`smooth_keyboard_scroll 1`
 with a 140 ms duration (`smooth_keyboard_scroll_duration 140`). Set the duration
 to `0`, or disable `smooth_keyboard_scroll`, for instant movement.
 
+Use [RELEASES.md](RELEASES.md) to keep the Mac and PHANEX installations on the
+same GitHub release with `~/.local/bin/sioyek-sync`.
+
 Use [BUILDING-LINUX.md](BUILDING-LINUX.md) for Linux and
 [BUILDING-MAC.md](BUILDING-MAC.md) for the local Mac setup. This development
-source needs **Qt 6.7 or 6.8**; the older Qt 5 Linux instructions below are
+source needs **Qt 6**; tested setups use Qt 6.8.2 on this Mac and Debian 13,
+and Qt 6.11.2 on PHANEX. The older Qt 5 Linux instructions below are
 retained from upstream.
 
 ### Linux
