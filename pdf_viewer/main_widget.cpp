@@ -1942,8 +1942,26 @@ void MainWidget::move_document_with_keyboard(float dx, float dy) {
             QPointF delta = value.toPointF();
             QPointF step = delta - keyboard_scroll_applied_delta;
             view->move(step.x(), step.y());
+            // Keep page-dependent fitting in sync without refreshing the whole UI.
+            if (last_smart_fit_page) {
+                int current_page = get_current_page_number();
+                if (current_page != last_smart_fit_page) {
+                    main_document_view->fit_to_page_width(true);
+                    last_smart_fit_page = current_page;
+                    keyboard_scroll_zoom = view->get_zoom_level();
+                }
+            }
             keyboard_scroll_applied_delta = delta;
             keyboard_scroll_expected_offset = QPointF(view->get_offset_x(), view->get_offset_y());
+            // Only the document needs repainting at animation frequency. The normal
+            // validation timer updates status text and portals during a held key.
+            // Avoid even that repaint if document bounds prevented any movement.
+            if (offset != keyboard_scroll_expected_offset) {
+                opengl_widget->update();
+                invalidate_render();
+            }
+        });
+        connect(keyboard_scroll_animation, &QVariantAnimation::finished, this, [this]() {
             validate_render();
         });
     }
